@@ -32,8 +32,14 @@ export default function LoginPage() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      // Redirigir a la página principal o dashboard
-      router.push("/dashboard");
+      // 📌 Redirigir según el tipo de usuario
+      if (data.user.tipoUsuario === "admin") {
+        router.push("/dashboard");
+      } else if (data.user.tipoUsuario === "novio" || data.user.tipoUsuario === "novia") {
+        router.push("/dashboard/noviosDashboard");
+      } else {
+        throw new Error("Tipo de usuario no reconocido");
+      }
     } catch (err: any) {
       setError(err.message);
     }
@@ -48,9 +54,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Email
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Email</label>
             <input
               type="email"
               value={email}
@@ -61,9 +65,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Contraseña
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Contraseña</label>
             <input
               type="password"
               value={password}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 export default function Perfil() {
-  const [user, setUser] = useState<{ nombre: string; email: string; tipoUsuario: string } | null>(null);
+  const [user, setUser] = useState<{ nombre: string; email: string; telefono: String; tipoUsuario: string } | null>(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -19,11 +19,13 @@ export default function Perfil() {
           <h2 className="text-2xl font-bold">👤 Mi Perfil</h2>
           <p><strong>Nombre:</strong> {user.nombre}</p>
           <p><strong>Email:</strong> {user.email}</p>
+          <p><strong>Telefono:</strong> {user.telefono}</p>
           <p><strong>Rol:</strong> {user.tipoUsuario}</p>
         </>
       ) : (
         <p>Cargando...</p>
       )}
     </div>
+   
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import EstadisticasBoda from "@/app/components/common/EstadisticasBoda";
 
 interface Boda {
   _id: string;
@@ -61,10 +62,17 @@ export default function MiBoda() {
 
       {boda ? (
         <div className="mt-4 space-y-4">
+          <div className="bg-blue-100 p-4 rounded-lg">
+
           <p className="text-gray-600"><strong>📛 Nombre:</strong> {boda.nombre}</p>
           <p className="text-gray-600"><strong>📅 Fecha:</strong> {new Date(boda.fecha).toLocaleDateString()}</p>
           <p className="text-gray-600"><strong>📍 Ubicación:</strong> {boda.ubicacion}</p>
           <p className="text-gray-600"><strong>📜 Detalles:</strong> {boda.detalles || "Sin detalles"}</p>
+          </div>
+          <div className="bg-green-100 p-4 rounded-lg">
+          <h2 className="text-2xl font-bold mb-4">📊 Estadísticas de la Boda</h2>
+            <EstadisticasBoda />
+          </div>
 
           <Link
             href="/dashboard/noviosDashboard/miBoda/editar"

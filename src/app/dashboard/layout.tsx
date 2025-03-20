@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<{ nombre: string; tipoUsuario: string } | null>(null);
+  const [user, setUser] = useState<{ nombre: string; tipoUsuario: string; bodaId?: string } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -28,7 +28,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav>
           <ul className="space-y-3">
             <li>
-            
               <Link href="/dashboard" className="hover:text-gray-300">🏠 Inicio</Link>
             </li>
             <li>
@@ -50,6 +49,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <li>
                   <Link href="/dashboard/configuracion" className="hover:text-gray-300">⚙ Configuración</Link>
                 </li>
+                <li>
+                  <Link href="/dashboard/formularios" className="hover:text-gray-300">📋 Formularios (Admin)</Link>
+                </li>
               </>
             ) : (
               <>
@@ -64,17 +66,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Link href="/dashboard/noviosDashboard/mensajes" className="hover:text-gray-300">✉️ Mis Mensajes</Link>
                 </li>
                 <li>
+                  <Link href={user?.bodaId ? `/dashboard/formularios/${user.bodaId}` : "#"} className="hover:text-gray-300">
+                    📋 Mis Formularios</Link>
+                </li>
+                <li>
                   <Link href="/dashboard/noviosDashboard/listas" className="hover:text-gray-300">📢 Mis Listas de Difusión</Link>
                 </li>
-                
               </>
             )}
             <li>
-                <Link href="/dashboard/perfil/editar" className="block bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-center">
-              ✏️ Editar Perfil
-            </Link>
-
-                </li>
+              <Link href="/dashboard/perfil/editar" className="block bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-center">
+                ✏️ Editar Perfil
+              </Link>
+            </li>
           </ul>
         </nav>
       </aside>

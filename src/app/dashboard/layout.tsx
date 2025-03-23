@@ -6,9 +6,11 @@ import Link from "next/link";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<{ nombre: string; tipoUsuario: string; bodaId?: string } | null>(null);
+  const [isClient, setIsClient] = useState(false); // Estado para verificar si estamos en el cliente
   const router = useRouter();
 
   useEffect(() => {
+    setIsClient(true); // 📌 Indicar que estamos en el cliente
     const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
 
@@ -20,6 +22,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setUser(JSON.parse(storedUser));
   }, [router]);
 
+  
   return (
     <div className="flex h-screen">
       {/* Sidebar de navegación */}
@@ -66,11 +69,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Link href="/dashboard/noviosDashboard/mensajes" className="hover:text-gray-300">✉️ Mis Mensajes</Link>
                 </li>
                 <li>
+                  <Link href={`/dashboard/formularios/${user?.bodaId}/preguntasLista`} className="hover:text-gray-300">
+                    📋 Mis Preguntas
+                  </Link>
+                </li>
+                <li>
                   <Link href={user?.bodaId ? `/dashboard/formularios/${user.bodaId}` : "#"} className="hover:text-gray-300">
                     📋 Mis Formularios</Link>
                 </li>
                 <li>
-                  <Link href="/dashboard/noviosDashboard/listas" className="hover:text-gray-300">📢 Mis Listas de Difusión</Link>
+                  <Link href={user?.bodaId ? `/dashboard/listas/${user.bodaId}` : "#"} className="hover:text-gray-300">📢 Mis Listas de Difusión</Link>
                 </li>
               </>
             )}

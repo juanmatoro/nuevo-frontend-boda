@@ -7,6 +7,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Select from "react-select";
 import { Formulario } from "@/interfaces/formulario";
+import ClientOnly from "@/app/components/common/ClientOnly";
 import Modal from "@/app/components/ui/Modal";
 
 // 📌 Esquema de validación con Zod
@@ -69,13 +70,27 @@ export default function FormulariosDashboard() {
     reset();
   };
 
-  const abrirModalEdicion = (form: Formulario) => {
+/*   const abrirModalEdicion = (form: Formulario) => {
     setFormularioEditando(form);
     setValue("nombre", form.nombre);
     setValue("preguntas", form.preguntas.map((p: any) => p._id));
     setValue("enviadosA", form.enviadosA.map((i: any) => i._id));
     setModalAbierto(true);
+  }; */
+
+  const abrirModalEdicion = (form: Formulario) => {
+    setFormularioEditando(form);
+    setValue("nombre", form.nombre);
+    setValue("preguntas", form.preguntas.map((p: any) => p._id));
+    setValue("enviadosA", form.enviadosA.map((i: any) => i._id));
+  
+    // ✅ Detectar si es una lista (1 ID y coincide con una lista existente)
+    const enviadoEsLista = form.enviadosA.length === 1 && listasDifusion.some((l) => l._id === (typeof form.enviadosA[0] === 'string' ? form.enviadosA[0] : (form.enviadosA[0] as { _id: string })._id));
+  
+    setModoEnvio(enviadoEsLista ? "lista" : "invitados");
+    setModalAbierto(true);
   };
+  
 
   const guardarCambios = async (data: FormularioData) => {
     if (!formularioEditando) return;
@@ -133,17 +148,20 @@ export default function FormulariosDashboard() {
             name="preguntas"
             control={control}
             render={({ field }) => (
-              <Select
-                isMulti
-                options={preguntas.map((p: any) => ({ value: p._id, label: p.pregunta }))}
-                onChange={(selected) => field.onChange(selected.map((s: any) => s.value))}
-              />
+              <ClientOnly>
+                <Select
+                  isMulti
+                  options={preguntas.map((p: any) => ({ value: p._id, label: p.pregunta }))}
+                  onChange={(selected) => field.onChange(selected.map((s: any) => s.value))}
+                />
+              </ClientOnly>
             )}
           />
         </div>
         {/* 🔘 Select para elegir modo de envío */}
 <div>
   <label className="block font-semibold mb-2">📤 Enviar formulario a:</label>
+  <ClientOnly>
   <Select
     value={{ value: modoEnvio, label: modoEnvio === "invitados" ? "Invitados" : "Lista de difusión" }}
     onChange={(option) => option && setModoEnvio(option.value)}
@@ -153,6 +171,7 @@ export default function FormulariosDashboard() {
     ]}
     className="mb-4"
   />
+  </ClientOnly>
 </div>
 
 {/* 🔁 Select dinámico según la opción */}
@@ -164,16 +183,19 @@ export default function FormulariosDashboard() {
         name="enviadosA"
         control={control}
         render={({ field }) => (
-          <Select
-            options={invitados.map((i) => ({
-              value: i._id,
-              label: `${i.nombre} (${i.telefono})`,
-            }))}
-            isMulti
-            className="basic-multi-select"
-            classNamePrefix="select"
-            onChange={(selected) => field.onChange(selected.map((s) => s.value))}
-          />
+          <ClientOnly>  
+
+            <Select
+              options={invitados.map((i) => ({
+                value: i._id,
+                label: `${i.nombre} (${i.telefono})`,
+              }))}
+              isMulti
+              className="basic-multi-select"
+              classNamePrefix="select"
+              onChange={(selected) => field.onChange(selected.map((s) => s.value))}
+            />
+          </ClientOnly>
         )}
       />
     </>
@@ -184,16 +206,19 @@ export default function FormulariosDashboard() {
         name="enviadosA"
         control={control}
         render={({ field }) => (
-          <Select
-            options={listasDifusion.map((l) => ({
-              value: l._id,
-              label: `${l.nombre} (${l.invitados.length} invitados)`
-            }))}
-            isMulti={false}
-            className="basic-single-select"
-            classNamePrefix="select"
-            onChange={(selected) => selected && field.onChange([selected.value])}
-          />
+          <ClientOnly>
+            <Select
+              options={listasDifusion.map((l) => ({
+                value: l._id,
+                label: `${l.nombre} (${l.invitados.length} invitados)`
+              }))}
+              isMulti={false}
+              className="basic-single-select"
+              classNamePrefix="select"
+              onChange={(selected) => selected && field.onChange([selected.value])}
+            />
+          </ClientOnly>
+          
         )}
       />
     </>
@@ -224,7 +249,7 @@ export default function FormulariosDashboard() {
       )}
 
       {/* ✅ Modal de edición */}
-      {modalAbierto && (
+     {/*  {modalAbierto && (
         <Modal isOpen={modalAbierto} onClose={() => setModalAbierto(false)} title="✏️ Editar Formulario">
           <form onSubmit={handleSubmit(guardarCambios)} className="space-y-4">
             <div>
@@ -240,14 +265,16 @@ export default function FormulariosDashboard() {
                 name="preguntas"
                 control={control}
                 render={({ field }) => (
-                  <Select
-                    isMulti
-                    options={preguntas.map((p: any) => ({ value: p._id, label: p.pregunta }))}
-                    value={preguntas
-                      .filter((p: any) => field.value.includes(p._id))
-                      .map((p: any) => ({ value: p._id, label: p.pregunta }))}
-                    onChange={(selected) => field.onChange(selected.map((s: any) => s.value))}
-                  />
+                  <ClientOnly>
+                    <Select
+                      isMulti
+                      options={preguntas.map((p: any) => ({ value: p._id, label: p.pregunta }))}
+                      value={preguntas
+                        .filter((p: any) => field.value.includes(p._id))
+                        .map((p: any) => ({ value: p._id, label: p.pregunta }))}
+                      onChange={(selected) => field.onChange(selected.map((s: any) => s.value))}
+                    />
+                  </ClientOnly>
                 )}
               />
             </div>
@@ -258,14 +285,16 @@ export default function FormulariosDashboard() {
                 name="enviadosA"
                 control={control}
                 render={({ field }) => (
-                  <Select
-                    isMulti
-                    options={invitados.map((i: any) => ({ value: i._id, label: `${i.nombre} (${i.telefono})` }))}
-                    value={invitados
-                      .filter((i: any) => field.value.includes(i._id))
-                      .map((i: any) => ({ value: i._id, label: `${i.nombre} (${i.telefono})` }))}
-                    onChange={(selected) => field.onChange(selected.map((s: any) => s.value))}
-                  />
+                  <ClientOnly>
+                    <Select
+                      isMulti
+                      options={invitados.map((i: any) => ({ value: i._id, label: `${i.nombre} (${i.telefono})` }))}
+                      value={invitados
+                        .filter((i: any) => field.value.includes(i._id))
+                        .map((i: any) => ({ value: i._id, label: `${i.nombre} (${i.telefono})` }))}
+                      onChange={(selected) => field.onChange(selected.map((s: any) => s.value))}
+                    />
+                  </ClientOnly>
                 )}
               />
             </div>
@@ -276,7 +305,115 @@ export default function FormulariosDashboard() {
             </div>
           </form>
         </Modal>
+      )} */}
+      {modalAbierto && (
+  <Modal isOpen={modalAbierto} onClose={() => setModalAbierto(false)} title="✏️ Editar Formulario">
+    <form onSubmit={handleSubmit(guardarCambios)} className="space-y-4">
+      <div>
+        <label className="block font-semibold mb-2">📌 Nombre:</label>
+        <Controller name="nombre" control={control} render={({ field }) => (
+          <input {...field} className="w-full p-2 border rounded" />
+        )} />
+      </div>
+
+      <div>
+        <label className="block font-semibold mb-2">❓ Preguntas:</label>
+        <Controller
+          name="preguntas"
+          control={control}
+          render={({ field }) => (
+            <ClientOnly>
+              <Select
+                isMulti
+                options={preguntas.map((p: any) => ({ value: p._id, label: p.pregunta }))}
+                value={preguntas
+                  .filter((p: any) => field.value.includes(p._id))
+                  .map((p: any) => ({ value: p._id, label: p.pregunta }))}
+                onChange={(selected) => field.onChange(selected.map((s: any) => s.value))}
+              />
+            </ClientOnly>
+          )}
+        />
+      </div>
+
+      {/* 🔘 Modo de envío */}
+      <div>
+        <label className="block font-semibold mb-2">📤 Modo de envío:</label>
+        <ClientOnly>
+          <Select
+            value={{ value: modoEnvio, label: modoEnvio === "invitados" ? "Invitados" : "Lista de difusión" }}
+            onChange={(option) => option && setModoEnvio(option.value)}
+            options={[
+              { value: "invitados", label: "Invitados" },
+              { value: "lista", label: "Lista de difusión" }
+            ]}
+            className="mb-2"
+          />
+        </ClientOnly>
+      </div>
+
+      {/* 🔁 Destinatarios según modo de envío */}
+      {modoEnvio === "invitados" ? (
+        <>
+          <label className="block font-semibold mb-2">🎉 Selecciona invitados:</label>
+          <Controller
+            name="enviadosA"
+            control={control}
+            render={({ field }) => (
+              <ClientOnly>
+                <Select
+                  isMulti
+                  options={invitados.map((i) => ({
+                    value: i._id,
+                    label: `${i.nombre} (${i.telefono})`,
+                  }))}
+                  value={invitados
+                    .filter((i: any) => field.value.includes(i._id))
+                    .map((i: any) => ({ value: i._id, label: `${i.nombre} (${i.telefono})` }))}
+                  onChange={(selected) => field.onChange(selected.map((s: any) => s.value))}
+                />
+              </ClientOnly>
+            )}
+          />
+        </>
+      ) : (
+        <>
+          <label className="block font-semibold mb-2">📋 Selecciona una lista de difusión:</label>
+          <Controller
+            name="enviadosA"
+            control={control}
+            render={({ field }) => (
+              <ClientOnly>
+                <Select
+                  options={listasDifusion.map((l) => ({
+                    value: l._id,
+                    label: `${l.nombre} (${l.invitados.length} invitados)`
+                  }))}
+                  value={listasDifusion
+                    .filter((l) => field.value.includes(l._id))
+                    .map((l) => ({
+                      value: l._id,
+                      label: `${l.nombre} (${l.invitados.length} invitados)`
+                    }))}
+                  isMulti={false}
+                  className="basic-single-select"
+                  classNamePrefix="select"
+                  onChange={(selected) => selected && field.onChange([selected.value])}
+                />
+              </ClientOnly>
+            )}
+          />
+        </>
       )}
+
+      <div className="flex justify-end">
+        <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded mr-2">💾 Guardar</button>
+        <button type="button" onClick={() => setModalAbierto(false)} className="bg-gray-300 px-4 py-2 rounded">❌ Cancelar</button>
+      </div>
+    </form>
+  </Modal>
+)}
+
     </div>
   );
 }

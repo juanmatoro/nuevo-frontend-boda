@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Modal from "@/app/components/ui/Modal";
 
 interface Pregunta {
   _id: string;
@@ -18,7 +19,8 @@ interface Invitado {
 
 interface Formulario {
   _id: string;
-  enviadosA: Invitado[];
+  nombre: string;
+  enviadosA: Invitado[] | string[]; // Puede ser invitados o una lista (string ID)
   preguntas: Pregunta[];
   completado: boolean;
 }
@@ -28,45 +30,60 @@ export default function FormulariosDashboard() {
   const [formularios, setFormularios] = useState<Formulario[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedForm, setSelectedForm] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
   const [destinatario, setDestinatario] = useState<"lista" | "invitados">("lista");
-  const [listas, setListas] = useState<string[]>([]); // Listas de difusión disponibles
+  const [listas, setListas] = useState<{ _id: string; nombre: string }[]>([]);
   const [selectedList, setSelectedList] = useState<string | null>(null);
   const [invitados, setInvitados] = useState<Invitado[]>([]);
   const [selectedInvitados, setSelectedInvitados] = useState<string[]>([]);
 
-  useEffect(() => {
-    const fetchFormularios = async () => {
-      const token = localStorage.getItem("token");
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-      if (!token || !bodaId) {
-        console.error("❌ Usuario no autenticado o bodaId no encontrado.");
-        return;
-      }
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!token || !bodaId) return;
 
       try {
-        const response = await fetch(
-          `http://localhost:4000/api/forms/forms/${bodaId}`,
+        // Formularios
+        const response = await fetch(`http://localhost:4000/api/forms/forms/${bodaId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json();
+        setFormularios(data);
+
+        // Invitados
+        const invitadosRes = await fetch(
+          `http://localhost:4000/api/guests/invitados/${bodaId}?limit=100`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
+        const invitadosData = await invitadosRes.json();
+        setInvitados(invitadosData.invitados || []);
 
-        const data = await response.json();
-        console.log("🔍 Formularios cargados:", data);
-        setFormularios(data);
+        // Listas
+        const listasRes = await fetch(`http://localhost:4000/api/lists/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const listasData = await listasRes.json();
+        setListas(listasData || []);
       } catch (error) {
-        console.error("❌ Error al obtener formularios:", error);
+        console.error("❌ Error al cargar datos:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchFormularios();
-  }, [bodaId]);
+    fetchData();
+  }, [bodaId, token]);
 
-  // Función para enviar formulario
+  const handleOpenModal = (formId: string) => {
+    setSelectedForm(formId);
+    setModalOpen(true);
+  };
+
   const enviarFormulario = async () => {
     if (!selectedForm) return;
-    
-    const token = localStorage.getItem("token");
+
     const destinatarios =
       destinatario === "lista" ? selectedList : selectedInvitados;
 
@@ -91,6 +108,7 @@ export default function FormulariosDashboard() {
       const result = await response.json();
       if (response.ok) {
         alert("✅ Formulario enviado con éxito.");
+        setModalOpen(false);
       } else {
         alert(`❌ Error: ${result.message}`);
       }
@@ -103,7 +121,6 @@ export default function FormulariosDashboard() {
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-4">📋 Formularios de la Boda</h2>
 
-      {/* Botón para crear un nuevo formulario */}
       <Link
         href={`/dashboard/formularios/${bodaId}/crearFormulario`}
         className="bg-green-500 text-white px-4 py-2 rounded mb-4 inline-block"
@@ -118,33 +135,39 @@ export default function FormulariosDashboard() {
           <ul className="mt-4 space-y-4">
             {formularios.map((formulario) => (
               <li key={formulario._id} className="border p-4 rounded-lg">
-                <h3 className="font-bold">📝 Formulario ID: {formulario._id}</h3>
+                <h3 className="font-bold">📝 Formulario: {formulario.nombre}</h3>
                 <p>📌 Estado: {formulario.completado ? "✅ Completado" : "⏳ Pendiente"}</p>
-                <div key={`preguntas-${formulario._id}`}>
-                  
-                {/* Listado de preguntas en el formulario */}
+
+                {/* Preguntas */}
                 <h4 className="font-semibold mt-2">📄 Preguntas:</h4>
                 <ul className="list-disc pl-5">
                   {formulario.preguntas.map((pregunta) => (
                     <li key={pregunta._id}>{pregunta.pregunta}</li>
                   ))}
                 </ul>
-                </div> 
-                <div key={`enviadosA-${formulario._id}`}>
-                   {/* Invitados asignados */}
+
+                {/* Enviado a */}
                 <h4 className="font-semibold mt-2">👤 Enviado a:</h4>
                 <ul className="list-disc pl-5">
-                  {formulario.enviadosA.map((invitado) => (
-                    <li key={invitado._id}>{invitado.nombre} ({invitado.telefono})</li>
-                  ))}
+                  {Array.isArray(formulario.enviadosA) &&
+                  typeof formulario.enviadosA[0] === "string" ? (
+                    <li>
+                      Lista de difusión:{" "}
+                      {listas.find((l) => l._id === formulario.enviadosA[0])?.nombre ||
+                        "Lista desconocida"}
+                    </li>
+                  ) : (
+                    (formulario.enviadosA as Invitado[]).map((invitado) => (
+                      <li key={invitado._id}>
+                        {invitado.nombre} ({invitado.telefono})
+                      </li>
+                    ))
+                  )}
                 </ul>
-                 
-                 </div>    
-               
 
-                {/* Botón para enviar */}
+                {/* Botón enviar */}
                 <button
-                  onClick={() => setSelectedForm(formulario._id)}
+                  onClick={() => handleOpenModal(formulario._id)}
                   className="bg-blue-500 text-white px-3 py-1 rounded mt-3"
                 >
                   ✉️ Enviar Formulario
@@ -157,14 +180,20 @@ export default function FormulariosDashboard() {
         <p className="text-gray-600">No hay formularios registrados.</p>
       )}
 
-      {/* Modal para elegir destinatarios */}
-      {selectedForm && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg">
-            <h3 className="text-lg font-bold">✉️ Enviar Formulario</h3>
-
-            {/* Opción de lista de difusión */}
-            <label className="block mt-3">
+      {/* ✅ Modal reutilizable */}
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setSelectedForm(null);
+        }}
+        title="✉️ Enviar Formulario"
+      >
+        <div>
+          {/* Método de envío */}
+          <label className="block mb-2 font-semibold">📤 Enviar a:</label>
+          <div className="mb-4">
+            <label className="mr-4">
               <input
                 type="radio"
                 name="destinatario"
@@ -172,25 +201,9 @@ export default function FormulariosDashboard() {
                 checked={destinatario === "lista"}
                 onChange={() => setDestinatario("lista")}
               />
-              📢 Lista de difusión
+              <span className="ml-1">Lista de difusión</span>
             </label>
-
-            {/* Seleccionar lista */}
-            {destinatario === "lista" && (
-              <select
-                value={selectedList || ""}
-                onChange={(e) => setSelectedList(e.target.value)}
-                className="border p-2 w-full mt-2"
-              >
-                <option value="">Selecciona una lista</option>
-                {listas.map((lista) => (
-                  <option key={lista} value={lista}>{lista}</option>
-                ))}
-              </select>
-            )}
-
-            {/* Opción de invitados seleccionados */}
-            <label className="block mt-3">
+            <label>
               <input
                 type="radio"
                 name="destinatario"
@@ -198,31 +211,53 @@ export default function FormulariosDashboard() {
                 checked={destinatario === "invitados"}
                 onChange={() => setDestinatario("invitados")}
               />
-              🎉 Invitados Seleccionados
+              <span className="ml-1">Invitados</span>
             </label>
+          </div>
 
-            {/* Seleccionar invitados */}
-            {destinatario === "invitados" && (
-              <select
-                multiple
-                value={selectedInvitados}
-                onChange={(e) =>
-                  setSelectedInvitados(Array.from(e.target.selectedOptions, (option) => option.value))
-                }
-                className="border p-2 w-full mt-2"
-              >
-                {invitados.map((inv) => (
-                  <option key={inv._id} value={inv._id}>{inv.nombre}</option>
-                ))}
-              </select>
-            )}
+          {/* Selects según modo */}
+          {destinatario === "lista" ? (
+            <select
+              value={selectedList || ""}
+              onChange={(e) => setSelectedList(e.target.value)}
+              className="border p-2 w-full"
+            >
+              <option value="">Selecciona una lista</option>
+              {listas.map((lista) => (
+                <option key={lista._id} value={lista._id}>
+                  {lista.nombre}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <select
+              multiple
+              value={selectedInvitados}
+              onChange={(e) =>
+                setSelectedInvitados(
+                  Array.from(e.target.selectedOptions, (option) => option.value)
+                )
+              }
+              className="border p-2 w-full"
+            >
+              {invitados.map((inv) => (
+                <option key={inv._id} value={inv._id}>
+                  {inv.nombre}
+                </option>
+              ))}
+            </select>
+          )}
 
-            <button onClick={enviarFormulario} className="bg-green-500 text-white px-4 py-2 rounded mt-4">
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={enviarFormulario}
+              className="bg-green-500 text-white px-4 py-2 rounded"
+            >
               ✅ Enviar
             </button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

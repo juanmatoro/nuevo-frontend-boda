@@ -10,7 +10,7 @@ export interface BroadcastList {
   _id: string;
   bodaId: string;
   nombre: string;
-  invitados: Invitado[];
+  invitados: string[];
   createdAt?: string;
   updatedAt?: string;
 }

@@ -2,82 +2,161 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-
-interface Invitado {
-  _id: string;
-  nombre: string;
-  telefono: string;
-  invitadoDe: string;
-  confirmacion: boolean | null;
-  bodaId: string;
-}
+import EditarInvitadoModal from "@/app/components/admin/EditarInvitadoModal"; // Ajusta si cambia de carpeta
+import { getInvitadoById } from "@/services/invitadosSercice"; // Ajusta si cambia de carpeta
+import { getListasPorInvitado } from "@/services/broadcastService"; // Ajusta si cambia de carpeta
+import { BroadcastList } from "@/interfaces/broadcast";
+import PreguntasInvitado from "@/app/components/admin/PreguntasInvitado"; // Ajusta si cambia de carpeta
 
 export default function DetallesInvitado() {
-  const params = useParams(); // ✅ Obtenemos los parámetros de la URL
-  const id = params.id as string; // ✅ Convertimos a string si es necesario
+  const params = useParams();
+  const id = params.id as string;
 
-  const [invitado, setInvitado] = useState<Invitado | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [invitado, setInvitado] = useState<any>(null);
+  const [listasInvitado, setListasInvitado] = useState<BroadcastList[]>([]);
+  const [modalAbierto, setModalAbierto] = useState(false);
+
+  const storedUser =
+    typeof window !== "undefined" ? localStorage.getItem("user") : null;
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const userId = user?._id;
+  const userRole = user?.tipoUsuario;
+
+  const esAdmin = userRole === "admin";
+  const esNovio = userRole === "novio" || userRole === "novia";
+  const esInvitado = userRole === "guest";
+
+  const esEditable = esAdmin || esNovio || (esInvitado && userId === id); // Solo el propio invitado puede editarse
 
   useEffect(() => {
     const fetchInvitado = async () => {
-      setLoading(true);
-      const token = localStorage.getItem("token");
-      if (!token) {
-        console.error("❌ No hay token de autenticación.");
-        setLoading(false);
-        return;
-      }
-
-      console.log("📡 Solicitando invitado con ID:", id); // 👀 Depuración
-
       try {
-        const response = await fetch(`http://localhost:4000/api/guests/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        const data = await response.json();
-        console.log("🔍 Datos del invitado (desde API):", data);
-
-        if (response.ok) {
-          if (data._id) {
-            setInvitado(data); // ✅ Asegurarnos de que tenemos un solo invitado
-          } else {
-            console.error("❌ La API no devolvió un invitado válido:", data);
-          }
-        } else {
-          console.error("❌ Error al obtener invitado:", data.message);
-        }
-      } catch (error) {
-        console.error("❌ Error en la petición:", error);
-      } finally {
-        setLoading(false);
+        const data = await getInvitadoById(id);
+        setInvitado(data);
+      } catch (err) {
+        console.error("❌ Error al cargar invitado:", err);
       }
     };
 
-    if (id) fetchInvitado();
+    const fetchListas = async () => {
+      try {
+        const listas = await getListasPorInvitado(id);
+        setListasInvitado(listas);
+        console.log("Listas del invitado:", listas);
+      } catch (err) {
+        console.error("❌ Error al cargar listas del invitado:", err);
+      }
+    };
+
+    if (id) {
+      fetchInvitado();
+      if (esNovio || esAdmin) {
+        fetchListas();
+      }
+    }
   }, [id]);
 
-  if (loading) return <p className="text-gray-500 text-center">Cargando...</p>;
-  if (!invitado) return <p className="text-gray-500 text-center">Invitado no encontrado.</p>;
+  if (!invitado)
+    return (
+      <p className="p-6 text-gray-600">⏳ Cargando datos del invitado...</p>
+    );
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">Detalles de {invitado.nombre}</h2>
-      <div className="bg-white shadow-md rounded-lg p-4">
-        <p className="text-lg">📞 Teléfono: <span className="font-semibold">{invitado.telefono}</span></p>
-        <p className="text-lg">👰 Invitado de: <span className="font-semibold">{invitado.invitadoDe}</span></p>
-        <p className="text-lg">
-          ✅ Confirmación: 
-          {invitado.confirmacion === null ? (
-            <span className="text-yellow-500 font-semibold"> Pendiente</span>
-          ) : invitado.confirmacion ? (
-            <span className="text-green-500 font-semibold"> Confirmado</span>
-          ) : (
-            <span className="text-red-500 font-semibold"> Rechazado</span>
-          )}
+    <div className="p-6 max-w-3xl mx-auto space-y-8">
+      {/* 🎉 Datos personales */}
+      <section className="bg-white shadow rounded p-4 space-y-2">
+        <h2 className="text-xl font-bold">📇 Datos del invitado</h2>
+        <p>
+          <strong>Nombre:</strong> {invitado.nombre}
         </p>
-      </div>
+        <p>
+          <strong>Teléfono:</strong> {invitado.telefono}
+        </p>
+        <p>
+          <strong>Invitado de:</strong> {invitado.invitadoDe}
+        </p>
+        <p>
+          <strong>Confirmación:</strong>{" "}
+          {invitado.confirmacion === null
+            ? "Pendiente"
+            : invitado.confirmacion
+            ? "✅ Confirmado"
+            : "❌ Rechazado"}
+        </p>
+
+        {/* ✏️ Mostrar botón de editar si puede */}
+        {esEditable && (
+          <button
+            className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            onClick={() => setModalAbierto(true)}
+          >
+            ✏️ Editar Invitado
+          </button>
+        )}
+      </section>
+
+      {/* ❓ Preguntas y respuestas */}
+      <section className="bg-white shadow rounded p-4 space-y-2">
+        <h2 className="text-xl font-bold">❓ Preguntas asignadas</h2>
+        {invitado?.preguntasAsignadas?.length > 0 ? (
+          <PreguntasInvitado />
+        ) : (
+          <p className="text-gray-500 italic">
+            Aún no tienes ningún detalle por confirmar con nosotros.
+          </p>
+        )}
+      </section>
+
+      {/* 📋 Listas de difusión (solo novios y admin) */}
+      {(esNovio || esAdmin) && (
+        <section className="bg-white shadow rounded p-4 space-y-2">
+          <h2 className="text-xl font-bold">📋 Listas de difusión</h2>
+          {listasInvitado.length > 0 ? (
+            <ul className="list-disc ml-5 text-sm">
+              {listasInvitado.map((lista) => (
+                <li key={lista._id}>{lista.nombre}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-500">
+              Este invitado no está en ninguna lista.
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* 📩 Botones de envío de mensajes (solo novios) */}
+      {esNovio && (
+        <section className="bg-white shadow rounded p-4 space-y-2">
+          <h2 className="text-xl font-bold">📩 Enviar mensaje</h2>
+          <button className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+            📤 Enviar mensaje por WhatsApp
+          </button>
+        </section>
+      )}
+
+      {/* 🖼️ Galería de imágenes */}
+      <section className="bg-white shadow rounded p-4 space-y-2">
+        <h2 className="text-xl font-bold">🖼️ Galería de imágenes</h2>
+        <p className="text-gray-500">
+          📷 Aquí se mostrará la galería de imágenes del invitado.
+        </p>
+        {(esNovio || esAdmin) && (
+          <p className="text-sm text-gray-400">
+            💡 Los novios pueden revisar y moderar las imágenes.
+          </p>
+        )}
+      </section>
+
+      {/* 🛠️ Modal de edición */}
+      {modalAbierto && (
+        <EditarInvitadoModal
+          isOpen={modalAbierto}
+          invitado={invitado}
+          onClose={() => setModalAbierto(false)}
+          onSave={(actualizado) => setInvitado(actualizado)}
+        />
+      )}
     </div>
   );
 }

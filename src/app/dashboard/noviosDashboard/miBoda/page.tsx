@@ -11,6 +11,7 @@ interface Boda {
   fecha: string;
   ubicacion: string;
   detalles: string;
+  whatsappNumber: string;
 }
 
 export default function MiBoda() {
@@ -36,9 +37,12 @@ export default function MiBoda() {
           return;
         }
 
-        const response = await fetch(`http://localhost:4000/api/bodas/${user.bodaId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await fetch(
+          `http://localhost:4000/api/bodas/${user.bodaId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
 
         if (!response.ok) {
           throw new Error("No se pudieron obtener los datos de la boda.");
@@ -63,14 +67,25 @@ export default function MiBoda() {
       {boda ? (
         <div className="mt-4 space-y-4">
           <div className="bg-blue-100 p-4 rounded-lg">
-
-          <p className="text-gray-600"><strong>📛 Nombre:</strong> {boda.nombre}</p>
-          <p className="text-gray-600"><strong>📅 Fecha:</strong> {new Date(boda.fecha).toLocaleDateString()}</p>
-          <p className="text-gray-600"><strong>📍 Ubicación:</strong> {boda.ubicacion}</p>
-          <p className="text-gray-600"><strong>📜 Detalles:</strong> {boda.detalles || "Sin detalles"}</p>
+            <p className="text-gray-600">
+              <strong>📛 Nombre:</strong> {boda.nombre}
+            </p>
+            <p className="text-gray-600">
+              <strong>📅 Fecha:</strong>{" "}
+              {new Date(boda.fecha).toLocaleDateString()}
+            </p>
+            <p className="text-gray-600">
+              <strong>📞 WhatsApp:</strong> {boda.whatsappNumber}{" "}
+            </p>
+            <p className="text-gray-600">
+              <strong>📍 Ubicación:</strong> {boda.ubicacion}
+            </p>
+            <p className="text-gray-600">
+              <strong>📜 Detalles:</strong> {boda.detalles || "Sin detalles"}
+            </p>
           </div>
           <div className="bg-green-100 p-4 rounded-lg">
-          <h2 className="text-2xl font-bold mb-4">📊 Estadísticas de la Boda</h2>
+            <h2 className="text-2xl font-bold mb-4">📊 Gestión de Invitados</h2>
             <EstadisticasBoda />
           </div>
 

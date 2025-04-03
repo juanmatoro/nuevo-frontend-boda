@@ -29,7 +29,7 @@ export default function EditarPreguntaPage() {
 
       try {
         const response = await fetch(
-          `http://localhost:4000/api/forms/question/${preguntaId}`,
+          `http://localhost:4000/api/preguntas/${preguntaId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 

@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getInvitadosByBoda } from "@/services/invitadosSercice";
 import GuestSearch from "@/app/components/guests/GuestSearch";
-import { obtenerPreguntasPorBoda } from "@/services/preguntasService";
-import FiltroDeInvitados from "@/app/components/admin/FiltroInvitados";
+
 
 interface Invitado {
   _id: string;
@@ -18,16 +17,13 @@ interface Invitado {
 
 export default function InvitadosPage() {
   const [invitados, setInvitados] = useState<Invitado[]>([]);
-  const [filteredInvitados, setFilteredInvitados] = useState<Invitado[]>([]);
-  const [preguntas, setPreguntas] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalInvitados, setTotalInvitados] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [bodaId, setBodaId] = useState<string>("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
 
   const limit = 4;
 
@@ -43,9 +39,9 @@ export default function InvitadosPage() {
 
     const user = JSON.parse(storedUser);
     setUserRole(user.role);
-    setBodaId(user.bodaId);
+    const bodaId = user.bodaId;
 
-    if (!user.bodaId) {
+    if (!bodaId) {
       setError("❌ No se encontró bodaId en el usuario.");
       setLoading(false);
       return;
@@ -54,17 +50,13 @@ export default function InvitadosPage() {
     const fetchInvitados = async () => {
       setLoading(true);
       try {
-        const data = (await getInvitadosByBoda(user.bodaId, page, limit)) as {
+        const data = await getInvitadosByBoda(bodaId, page, limit) as {
           invitados: Invitado[];
           totalPages: number;
           total: number;
         };
 
-        const fetchedInvitados = Array.isArray(data.invitados)
-          ? data.invitados
-          : [];
-        setInvitados(fetchedInvitados);
-        setFilteredInvitados(fetchedInvitados);
+        setInvitados(Array.isArray(data.invitados) ? data.invitados : []);
         setTotalPages(data.totalPages || 1);
         setTotalInvitados(data.total || 0);
       } catch (error) {
@@ -75,33 +67,8 @@ export default function InvitadosPage() {
       }
     };
 
-    const fetchPreguntas = async () => {
-      try {
-        const preguntasData = await obtenerPreguntasPorBoda(user.bodaId);
-        setPreguntas(preguntasData);
-      } catch (err) {
-        console.error("❌ Error al obtener preguntas:", err);
-      }
-    };
-
     fetchInvitados();
-    fetchPreguntas();
   }, [page]);
-
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (!query) {
-      setFilteredInvitados(invitados);
-    } else {
-      const lowerQuery = query.toLowerCase();
-      const result = invitados.filter(
-        (invitado) =>
-          invitado.nombre.toLowerCase().includes(lowerQuery) ||
-          invitado.telefono.includes(lowerQuery)
-      );
-      setFilteredInvitados(result);
-    }
-  };
 
   return (
     <div className="p-6">
@@ -124,32 +91,19 @@ export default function InvitadosPage() {
 
       <h2 className="text-2xl font-bold mb-4">🎉 Lista de Invitados</h2>
 
-      <GuestSearch onSearch={handleSearch} />
-
-      {preguntas.length > 0 && (
-        <FiltroDeInvitados
-          preguntas={preguntas}
-          bodaId={bodaId}
-          onFiltrar={setFilteredInvitados}
-        />
-      )}
-
       <p className="text-lg font-semibold mb-2">
-        👥 Total de Invitados:{" "}
-        <span className="text-blue-500">{totalInvitados}</span>
+        👥 Total de Invitados: <span className="text-blue-500">{totalInvitados}</span>
       </p>
 
       {loading && <p className="text-blue-500">⏳ Cargando invitados...</p>}
       {error && <p className="text-red-500">{error}</p>}
 
-      {!loading && filteredInvitados.length === 0 && (
-        <p className="text-gray-500">
-          No hay invitados que coincidan con la búsqueda.
-        </p>
+      {!loading && invitados.length === 0 && (
+        <p className="text-gray-500">No hay invitados registrados.</p>
       )}
 
       <ul className="mt-4 space-y-4">
-        {filteredInvitados.map((invitado) => (
+        {invitados.map((invitado) => (
           <li
             key={invitado._id}
             className="border p-4 rounded-lg flex justify-between items-center"
@@ -159,13 +113,13 @@ export default function InvitadosPage() {
               <p>📞 {invitado.telefono}</p>
               <p>👰 Invitado de: {invitado.invitadoDe}</p>
               <p>
-                <strong>Confirmación:</strong>{" "}
-                {invitado.confirmacion === null
-                  ? "Pendiente"
-                  : invitado.confirmacion
-                  ? "✅ Confirmado"
-                  : "❌ Rechazado"}
-              </p>
+            <strong>Confirmación:</strong>{" "}
+            {invitado.confirmacion === null
+              ? "Pendiente"
+              : invitado.confirmacion
+              ? "✅ Confirmado"
+              : "❌ Rechazado"}
+          </p>
             </div>
             <Link
               href={`/dashboard/noviosDashboard/invitados/${invitado._id}`}
@@ -177,27 +131,23 @@ export default function InvitadosPage() {
         ))}
       </ul>
 
-      {!searchQuery && (
-        <div className="flex justify-center mt-6 space-x-4">
-          <button
-            onClick={() => setPage(page - 1)}
-            disabled={page === 1}
-            className="bg-gray-300 px-4 py-2 rounded disabled:opacity-50"
-          >
-            ⬅️ Anterior
-          </button>
-          <span>
-            Página {page} de {totalPages}
-          </span>
-          <button
-            onClick={() => setPage(page + 1)}
-            disabled={page === totalPages}
-            className="bg-gray-300 px-4 py-2 rounded disabled:opacity-50"
-          >
-            Siguiente ➡️
-          </button>
-        </div>
-      )}
+      <div className="flex justify-center mt-6 space-x-4">
+        <button
+          onClick={() => setPage(page - 1)}
+          disabled={page === 1}
+          className="bg-gray-300 px-4 py-2 rounded disabled:opacity-50"
+        >
+          ⬅️ Anterior
+        </button>
+        <span>Página {page} de {totalPages}</span>
+        <button
+          onClick={() => setPage(page + 1)}
+          disabled={page === totalPages}
+          className="bg-gray-300 px-4 py-2 rounded disabled:opacity-50"
+        >
+          Siguiente ➡️
+        </button>
+      </div>
     </div>
   );
 }

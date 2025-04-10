@@ -8,8 +8,8 @@ export const getInvitadoById = async (id: string) => {
 };
 
 // 📌 Actualizar un invitado
-export const updateInvitado = async (id: string, data: any) => {
-  const response = await axios.get<Invitado>(`/guests/${id}`);
+export const updateInvitado = async (id: string, data: Partial<Invitado>) => {
+  const response = await axios.patch<Invitado>(`/guests/${id}`, data);
   return response.data;
 };
 
@@ -28,14 +28,20 @@ export const getInvitadosByBoda = async (
 // 📌 Obtener todos los invitados de una boda (con paginación opcional)
 export const getInvitadosBodaTodos = async (
   bodaId: string,
-  page: number = -1,
-  limit: number = 10000
+  page: number = 1,
+  limit: number = 10
 ) => {
   const response = await axios.get(
     `/guests/invitados/${bodaId}?page=${page}&limit=${limit}`
   );
   return response.data;
 };
+
+export const getAllGuestsByBoda = async (bodaId: string) => {
+  const response = await axios.get(`/guests/all-by-boda/${bodaId}`);
+  return response.data;
+};
+
 // 📌 Crear nuevo invitado
 export const createInvitado = async (data: any) => {
   const response = await axios.post("/guests", data);

@@ -79,3 +79,30 @@ export const scheduleMessage = async (
     throw error;
   }
 };
+// 📡 Obtener el estado de la sesión WhatsApp
+export const obtenerEstadoSesion = async (): Promise<{
+  estado: string;
+  mensaje?: string;
+}> => {
+  const bodaId = getBodaId();
+
+  const response = await axios.get<{ estado: string; mensaje?: string }>(
+    `/whatsapp/status`,
+    {
+      params: { bodaId },
+    }
+  );
+
+  return response.data;
+};
+
+export const iniciarSesionWhatsApp = async (): Promise<any> => {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  if (!user?.bodaId) throw new Error("No se encontró el bodaId");
+
+  const response = await axios.post("/whatsapp/start-session", {
+    bodaId: user.bodaId,
+  });
+
+  return response.data;
+};

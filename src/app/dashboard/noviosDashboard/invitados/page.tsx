@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getInvitadosByBoda } from "@/services/invitadosSercice";
+import {
+  getInvitadosByBoda,
+  getAllGuestsByBoda,
+} from "@/services/invitadosSercice";
 import GuestSearch from "@/app/components/guests/GuestSearch";
 import { obtenerPreguntasPorBoda } from "@/services/preguntasService";
 import FiltroDeInvitados from "@/app/components/admin/FiltroInvitados";
@@ -18,6 +21,7 @@ interface Invitado {
 
 export default function InvitadosPage() {
   const [invitados, setInvitados] = useState<Invitado[]>([]);
+  const [todosLosInvitados, setTodosLosInvitados] = useState<Invitado[]>([]);
   const [filteredInvitados, setFilteredInvitados] = useState<Invitado[]>([]);
   const [preguntas, setPreguntas] = useState<any[]>([]);
   const [page, setPage] = useState(1);
@@ -29,7 +33,7 @@ export default function InvitadosPage() {
   const [bodaId, setBodaId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const limit = 4;
+  const limit = 15;
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -75,6 +79,19 @@ export default function InvitadosPage() {
       }
     };
 
+    const fetchTodosLosInvitados = async () => {
+      try {
+        const data = (await getAllGuestsByBoda(user.bodaId)) as {
+          invitados: Invitado[];
+        };
+        setTodosLosInvitados(data.invitados || []);
+      } catch (error) {
+        console.error("❌ Error al obtener todos los invitados:", error);
+      }
+    };
+
+    fetchTodosLosInvitados();
+
     const fetchPreguntas = async () => {
       try {
         const preguntasData = await obtenerPreguntasPorBoda(user.bodaId);
@@ -94,7 +111,7 @@ export default function InvitadosPage() {
       setFilteredInvitados(invitados);
     } else {
       const lowerQuery = query.toLowerCase();
-      const result = invitados.filter(
+      const result = todosLosInvitados.filter(
         (invitado) =>
           invitado.nombre.toLowerCase().includes(lowerQuery) ||
           invitado.telefono.includes(lowerQuery)
@@ -148,11 +165,11 @@ export default function InvitadosPage() {
         </p>
       )}
 
-      <ul className="mt-4 space-y-4">
+      <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredInvitados.map((invitado) => (
           <li
             key={invitado._id}
-            className="border p-4 rounded-lg flex justify-between items-center"
+            className="border p-4 rounded-lg flex flex-col justify-between shadow-sm bg-white"
           >
             <div>
               <p className="font-bold">{invitado.nombre}</p>
@@ -169,7 +186,7 @@ export default function InvitadosPage() {
             </div>
             <Link
               href={`/dashboard/noviosDashboard/invitados/${invitado._id}`}
-              className="bg-blue-500 text-white px-4 py-2 rounded"
+              className="self-start inline-block bg-blue-500 text-white px-4 py-2 rounded mt-1.5"
             >
               Ver detalles
             </Link>

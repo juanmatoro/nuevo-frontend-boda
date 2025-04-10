@@ -24,23 +24,37 @@ export default function PlantillasSection() {
     const fetchData = async () => {
       try {
         const data = (await obtenerPlantillas()) as Plantilla[];
-        setPlantillas(data);
+        if (Array.isArray(data)) {
+          setPlantillas(data);
+        } else {
+          toast.error("❌ Respuesta inválida del servidor");
+        }
       } catch (error) {
+        console.error("❌ Error al obtener plantillas:", error);
         toast.error("Error al obtener las plantillas");
       }
     };
+
     fetchData();
   }, []);
 
   const handleCrear = async () => {
-    if (!nombre || !contenido) return;
+    if (!nombre.trim() || !contenido.trim()) {
+      toast.error("Rellena el nombre y el contenido para guardar");
+      return;
+    }
+
     try {
-      const nueva = (await crearPlantilla(nombre, contenido)) as Plantilla;
-      setPlantillas([...plantillas, nueva]);
+      const nueva = (await crearPlantilla(
+        nombre.trim(),
+        contenido.trim()
+      )) as Plantilla;
+      setPlantillas((prev) => [...prev, nueva]);
       setNombre("");
       setContenido("");
-      toast.success("Plantilla creada");
+      toast.success("✅ Plantilla creada");
     } catch (error) {
+      console.error("❌ Error al crear la plantilla:", error);
       toast.error("Error al crear la plantilla");
     }
   };
@@ -48,17 +62,19 @@ export default function PlantillasSection() {
   const handleEliminar = async (id: string) => {
     try {
       await eliminarPlantilla(id);
-      setPlantillas(plantillas.filter((p) => p._id !== id));
-      toast.success("Plantilla eliminada");
+      setPlantillas((prev) => prev.filter((p) => p._id !== id));
+      toast.success("🗑️ Plantilla eliminada");
     } catch (error) {
-      toast.error("Error al eliminar la plantilla");
+      console.error("❌ Error al eliminar plantilla:", error);
+      toast.error("No se pudo eliminar la plantilla");
     }
   };
 
   return (
-    <div className="border rounded p-4 shadow space-y-4">
+    <div className="border rounded p-4 shadow space-y-4 bg-white">
       <h3 className="text-lg font-bold">✏️ Plantillas de mensaje</h3>
 
+      {/* Formulario de creación */}
       <div className="flex flex-col gap-2">
         <input
           className="border rounded px-3 py-2"
@@ -81,6 +97,7 @@ export default function PlantillasSection() {
         </button>
       </div>
 
+      {/* Lista de plantillas */}
       <ul className="divide-y">
         {plantillas.map((p) => (
           <li key={p._id} className="py-2 flex justify-between items-start">

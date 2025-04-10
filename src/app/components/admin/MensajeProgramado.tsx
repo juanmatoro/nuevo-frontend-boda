@@ -1,5 +1,3 @@
-// src/app/components/admin/MensajeProgramadoForm.tsx
-
 "use client";
 
 import { useState } from "react";
@@ -8,31 +6,30 @@ import { scheduleMessage } from "@/services/mensajesService";
 
 interface Props {
   modoEnvio: "individual" | "lista";
-  telefono: string;
-  nombreLista: string;
+  invitadoId?: string; // Requiere ID del invitado
+  nombreLista?: string; // Para futura implementación
 }
 
 export default function MensajeProgramadoForm({
   modoEnvio,
-  telefono,
+  invitadoId,
   nombreLista,
 }: Props) {
   const [mensaje, setMensaje] = useState("");
   const [fecha, setFecha] = useState("");
 
   const handleProgramar = async () => {
-    if (!mensaje || !fecha) {
+    if (!mensaje.trim() || !fecha.trim()) {
       toast.error("Mensaje y fecha son obligatorios");
       return;
     }
 
     try {
-      if (modoEnvio === "individual" && telefono) {
-        await scheduleMessage(telefono, mensaje, fecha);
+      if (modoEnvio === "individual" && invitadoId) {
+        await scheduleMessage([invitadoId], mensaje, fecha);
         toast.success("📅 Mensaje programado para el invitado");
       } else if (modoEnvio === "lista" && nombreLista) {
-        // Enviar a todos los invitados de la lista (si se implementa)
-        toast("Funcionalidad aún no disponible para listas");
+        toast("📢 Programar mensajes por lista aún no está implementado");
       } else {
         toast.error("Faltan datos para programar el mensaje");
       }

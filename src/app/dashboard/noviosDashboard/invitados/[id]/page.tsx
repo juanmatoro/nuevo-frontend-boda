@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import EditarInvitadoModal from "@/app/components/admin/EditarInvitadoModal"; // Ajusta si cambia de carpeta
@@ -63,6 +64,17 @@ export default function DetallesInvitado() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-8">
+      {/* 🔙 Botón de volver */}
+      {(esAdmin || esNovio) && (
+        <div className="mb-4">
+          <Link
+            href="/dashboard/noviosDashboard/invitados"
+            className="inline-block px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded text-sm"
+          >
+            ⬅️ Volver a la lista de invitados
+          </Link>
+        </div>
+      )}
       {/* 🎉 Datos personales */}
       <section className="bg-white shadow rounded p-4 space-y-2">
         <h2 className="text-xl font-bold">📇 Datos del invitado</h2>

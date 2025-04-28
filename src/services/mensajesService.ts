@@ -100,7 +100,7 @@ export const iniciarSesionWhatsApp = async (): Promise<any> => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   if (!user?.bodaId) throw new Error("No se encontró el bodaId");
 
-  const response = await axios.post("/whatsapp/start-session", {
+  const response = await axios.post("/whatsapp/start", {
     bodaId: user.bodaId,
   });
 

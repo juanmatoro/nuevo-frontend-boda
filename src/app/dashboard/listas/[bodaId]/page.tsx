@@ -75,7 +75,7 @@ export default function ListasDifusionDashboard() {
   const abrirEdicion = (lista: BroadcastList) => {
     setEditandoLista(lista._id);
     setValue("nombre", lista.nombre);
-    setValue("invitados", lista.invitados.map((i: Invitado) => i._id));
+    setValue("invitados", lista.invitados.map((i: Invitado) => i._id) as string[]);
   };
 
   // 📌 Función para guardar los cambios de una lista editada
@@ -169,8 +169,8 @@ export default function ListasDifusionDashboard() {
                         }))}
                         isMulti
                         value={invitados
-                          .filter((i) => field.value.includes(i._id))
-                          .map((i) => ({ value: i._id, label: `${i.nombre} (${i.telefono})` }))}
+                          .filter((i) => ((field.value as string[]) || []).includes(i._id))
+                          .map((i) => ({ value: i._id, label: `${i.nombre} (${i.telefono})` }))}                        
                         onChange={(selected) =>
                           field.onChange(selected.map((s) => s.value))
                         }

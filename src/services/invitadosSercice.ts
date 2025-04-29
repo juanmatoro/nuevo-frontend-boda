@@ -25,18 +25,6 @@ export const getInvitadosByBoda = async (
   return response.data;
 };
 
-// 📌 Obtener todos los invitados de una boda (con paginación opcional)
-export const getInvitadosBodaTodos = async (
-  bodaId: string,
-  page: number = 1,
-  limit: number = 10
-) => {
-  const response = await axios.get(
-    `/guests/invitados/${bodaId}?page=${page}&limit=${limit}`
-  );
-  return response.data;
-};
-
 export const getAllGuestsByBoda = async (bodaId: string) => {
   const response = await axios.get(`/guests/all-by-boda/${bodaId}`);
   return response.data;

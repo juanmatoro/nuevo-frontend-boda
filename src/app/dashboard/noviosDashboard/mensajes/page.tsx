@@ -4,14 +4,15 @@ import { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 import EditorMensaje from "@/app/components/admin/EditorMensaje";
 import MensajeProgramadoForm from "@/app/components/admin/MensajeProgramado";
-import { getInvitadosByBoda } from "@/services/invitadosSercice";
-import { getBroadcastListsByBoda } from "@/services/broadcastService";
+import { getAllGuestsByBoda } from "@/services/invitadosSercice";
+import { getBroadcastListsByBoda as getBroadcastListsService } from "@/services/broadcastService";
 import {
   sendDirectMessage,
   sendBroadcastMessage,
   iniciarSesionWhatsApp,
   obtenerEstadoSesion,
 } from "@/services/mensajesService";
+import Select from "react-select";
 
 export default function MensajesPage() {
   const [mensaje, setMensaje] = useState("");
@@ -23,6 +24,9 @@ export default function MensajesPage() {
   const [listaId, setListaId] = useState("");
   const [listas, setListas] = useState<any[]>([]);
   const [invitados, setInvitados] = useState<any[]>([]);
+  const [invitadosOptions, setInvitadosOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
   const [estadoSesion, setEstadoSesion] = useState<string>("CONECTANDO");
   const [mensajeSesion, setMensajeSesion] = useState<string>(
     "Verificando sesión..."
@@ -44,15 +48,23 @@ export default function MensajesPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const options = invitados.map((i) => ({
+      value: i._id,
+      label: `${i.nombre} - ${i.telefono}`,
+    }));
+    setInvitadosOptions(options);
+  }, [invitados]);
+
   const cargarDatos = async () => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     if (!user?.bodaId) return;
 
     try {
-      const invitadosData = (await getInvitadosByBoda(user.bodaId)) as {
+      const invitadosData = (await getAllGuestsByBoda(user.bodaId)) as {
         invitados: any[];
       };
-      const listasData = await getBroadcastListsByBoda(user.bodaId);
+      const listasData = await getBroadcastListsService(user.bodaId);
       setInvitados(invitadosData.invitados || []);
       setListas(listasData || []);
     } catch (error) {
@@ -136,12 +148,15 @@ export default function MensajesPage() {
 
     try {
       if (modoEnvio === "individual") {
-        if (!telefono) {
+        if (!invitadoId) {
           toast.error("Selecciona un invitado");
           return;
         }
         await sendDirectMessage(telefono, mensaje);
         toast.success("📤 Mensaje enviado al invitado");
+        // Limpiar también el invitadoId y el teléfono en el envío individual
+        setInvitadoId("");
+        setTelefono("");
       } else {
         if (!listaId) {
           toast.error("Selecciona una lista de difusión");
@@ -150,13 +165,12 @@ export default function MensajesPage() {
         await sendBroadcastMessage(listaId, mensaje);
         toast.success("📢 Mensaje enviado a la lista de difusión");
         await cargarDatos();
+        // No limpiamos invitadoId ni teléfono en el envío a lista
+        setListaId("");
       }
 
-      // Limpiar
+      // Limpiar el mensaje en ambos casos
       setMensaje("");
-      setTelefono("");
-      setInvitadoId("");
-      setListaId("");
     } catch (error) {
       console.error("❌ Error al enviar mensaje:", error);
       toast.error("No se pudo enviar el mensaje");
@@ -231,23 +245,20 @@ export default function MensajesPage() {
       {modoEnvio === "individual" ? (
         <div>
           <label className="block font-semibold mb-1">📱 Invitado</label>
-          <select
-            value={invitadoId}
-            onChange={(e) => {
-              const id = e.target.value;
-              setInvitadoId(id);
+          <Select
+            value={invitadosOptions.find(
+              (option) => option.value === invitadoId
+            )}
+            onChange={(selectedOption) => {
+              const id = selectedOption?.value;
+              setInvitadoId(id || "");
               const invitado = invitados.find((i) => i._id === id);
               setTelefono(invitado?.telefono || "");
             }}
-            className="border rounded p-2 w-full"
-          >
-            <option value="">Selecciona un invitado</option>
-            {invitados.map((i) => (
-              <option key={i._id} value={i._id}>
-                {i.nombre} - {i.telefono}
-              </option>
-            ))}
-          </select>
+            options={invitadosOptions}
+            placeholder="Buscar invitado..."
+            isSearchable
+          />
         </div>
       ) : (
         <div>

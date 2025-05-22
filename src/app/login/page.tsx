@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import axiosInstance from "@/services/axiosInstance";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -14,19 +15,12 @@ export default function LoginPage() {
     setError(null); // Resetear error
 
     try {
-      const response = await fetch("http://localhost:4000/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
+      const response = await axiosInstance.post("/auth/login", {
+        email,
+        password,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Error al iniciar sesión");
-      }
+      const data = response.data;
 
       // Guardar token y usuario en localStorage
       localStorage.setItem("token", data.token);
@@ -35,13 +29,18 @@ export default function LoginPage() {
       // 📌 Redirigir según el tipo de usuario
       if (data.user.tipoUsuario === "admin") {
         router.push("/dashboard");
-      } else if (data.user.tipoUsuario === "novio" || data.user.tipoUsuario === "novia") {
+      } else if (
+        data.user.tipoUsuario === "novio" ||
+        data.user.tipoUsuario === "novia"
+      ) {
         router.push("/dashboard/noviosDashboard");
       } else {
         throw new Error("Tipo de usuario no reconocido");
       }
     } catch (err: any) {
-      setError(err.message);
+      const errorMsg =
+        err.response?.data?.message || err.message || "Error al iniciar sesión";
+      setError(errorMsg);
     }
   };
 
@@ -54,7 +53,9 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Email
+            </label>
             <input
               type="email"
               value={email}
@@ -65,7 +66,9 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Contraseña</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Contraseña
+            </label>
             <input
               type="password"
               value={password}

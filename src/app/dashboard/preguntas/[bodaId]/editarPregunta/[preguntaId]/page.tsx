@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import axiosInstance from "@/services/axiosInstance";
 
 export default function EditarPreguntaPage() {
   const [pregunta, setPregunta] = useState<{
@@ -13,13 +14,13 @@ export default function EditarPreguntaPage() {
     opciones: [],
     esObligatoria: false,
   });
+
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const router = useRouter();
   const { preguntaId, bodaId } = useParams(); // Extraemos los IDs de la URL
 
   useEffect(() => {
-    console.log("📌 ID de la pregunta recibido:", preguntaId); 
     const fetchPregunta = async () => {
       const token = localStorage.getItem("token");
       if (!token || !preguntaId) {
@@ -28,25 +29,17 @@ export default function EditarPreguntaPage() {
       }
 
       try {
-        const response = await fetch(
-          `http://localhost:4000/api/preguntas/${preguntaId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        const response = await axiosInstance.get(`/preguntas/${preguntaId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-        if (!response.ok) {
-          throw new Error("Error al cargar la pregunta");
-        }
+        const data = response.data;
 
-        const data = await response.json();
-        console.log("🔍 Pregunta cargada:", data);
-
-        // ✅ Actualizamos el estado con los datos de la pregunta
         setPregunta({
           pregunta: data.pregunta || "",
           opciones: Array.isArray(data.opciones) ? data.opciones : [],
           esObligatoria: data.esObligatoria || false,
         });
-        console.log("📌 Pregunta actualizada:", pregunta);
       } catch (error) {
         console.error("❌ Error al obtener la pregunta:", error);
         setMessage("Error al cargar la pregunta.");
@@ -86,25 +79,18 @@ export default function EditarPreguntaPage() {
     }
 
     try {
-      const response = await fetch(
-        `http://localhost:4000/api/forms/questions/${preguntaId}`,
+      const response = await axiosInstance.put(
+        `/forms/questions/${preguntaId}`,
+        pregunta,
         {
-          method: "PUT",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(pregunta),
         }
       );
 
-      if (!response.ok) {
-        throw new Error("Error al actualizar la pregunta");
-      }
-
       setMessage("✅ Pregunta actualizada con éxito.");
       setTimeout(() => router.push(`/dashboard/formularios/${bodaId}`), 1500);
-
     } catch (error) {
       console.error("❌ Error al actualizar:", error);
       setMessage("Error al actualizar la pregunta.");
@@ -134,7 +120,9 @@ export default function EditarPreguntaPage() {
 
           {/* Opciones de respuesta */}
           <div>
-            <label className="block font-semibold">Opciones (separadas por coma):</label>
+            <label className="block font-semibold">
+              Opciones (separadas por coma):
+            </label>
             <input
               type="text"
               name="opciones"
@@ -151,7 +139,10 @@ export default function EditarPreguntaPage() {
               name="esObligatoria"
               checked={pregunta.esObligatoria}
               onChange={() =>
-                setPregunta({ ...pregunta, esObligatoria: !pregunta.esObligatoria })
+                setPregunta({
+                  ...pregunta,
+                  esObligatoria: !pregunta.esObligatoria,
+                })
               }
               className="mr-2"
             />
@@ -162,7 +153,10 @@ export default function EditarPreguntaPage() {
           {message && <p className="text-blue-500">{message}</p>}
 
           {/* Botón de guardar */}
-          <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
+          <button
+            type="submit"
+            className="bg-blue-500 text-white px-4 py-2 rounded"
+          >
             💾 Guardar Cambios
           </button>
         </form>

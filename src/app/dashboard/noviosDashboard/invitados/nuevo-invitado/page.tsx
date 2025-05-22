@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import axios from "axios";
+
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
+});
 
 export default function NuevoInvitado() {
   const [formData, setFormData] = useState({
@@ -9,11 +14,14 @@ export default function NuevoInvitado() {
     telefono: "",
     invitadoDe: "Novio", // Valor por defecto
   });
+
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -24,43 +32,35 @@ export default function NuevoInvitado() {
 
     try {
       const token = localStorage.getItem("token");
-      const storedUser = localStorage.getItem("user");
-
-      if (!token || !storedUser) {
+      if (!token) {
         router.push("/login");
         return;
       }
 
-      const user = JSON.parse(storedUser);
-      if (!user.bodaId) {
-        throw new Error("No tienes una boda asociada.");
-      }
-
-      const response = await fetch("http://localhost:4000/api/guests", {
-        method: "POST",
+      // ✅ Enviamos solo los datos necesarios, sin bodaId
+      await api.post("/guests", formData, {
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ ...formData, bodaId: user.bodaId }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Error al agregar el invitado.");
-      }
-
       setSuccess("✅ Invitado agregado con éxito.");
-      setTimeout(() => router.push("/dashboard/noviosDashboard/invitados"), 2000);
+      setTimeout(
+        () => router.push("/dashboard/noviosDashboard/invitados"),
+        2000
+      );
     } catch (err: any) {
-      setError(err.message);
+      const message =
+        err.response?.data?.message || "Error al agregar el invitado.";
+      setError(message);
     }
   };
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto">
-      <h2 className="text-2xl font-bold text-center mb-4">➕ Añadir Invitado</h2>
+      <h2 className="text-2xl font-bold text-center mb-4">
+        ➕ Añadir Invitado
+      </h2>
 
       {error && <p className="text-red-500 text-center">{error}</p>}
       {success && <p className="text-green-500 text-center">{success}</p>}
@@ -104,7 +104,10 @@ export default function NuevoInvitado() {
           </select>
         </div>
 
-        <button type="submit" className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+        <button
+          type="submit"
+          className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+        >
           Guardar Invitado
         </button>
       </form>

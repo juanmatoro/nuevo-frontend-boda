@@ -2,20 +2,17 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api",
-  withCredentials: true, // Incluye cookies (importante si usas sesiones)
-  headers: {
-    "Content-Type": "application/json",
-  },
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api",
+  withCredentials: true,
 });
 
 axiosInstance.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
-  if (token) {
-    if (config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // ❌ Evita forzar Content-Type aquí → se ajusta automáticamente si es FormData
   return config;
 });
 

@@ -7,11 +7,12 @@ export default function TestPage() {
   const [error, setError] = useState<string | null>(null);
 
   // 🔥 Token de prueba (copiado de Postman)
-  const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3ZDQwNDVhZTRjYTUwMWJmNzk5OGFiYSIsInRpcG9Vc3VhcmlvIjoiYWRtaW4iLCJpYXQiOjE3NDIyOTYyOTksImV4cCI6MTc0NDg4ODI5OX0.x6eF12sDIPBpnOBkkK7CDO6fMxM-hzUVymYQOKS-7pQ"; // Reemplaza con tu token real
+  const token =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3ZDQwNDVhZTRjYTUwMWJmNzk5OGFiYSIsInRpcG9Vc3VhcmlvIjoiYWRtaW4iLCJpYXQiOjE3NDIyOTYyOTksImV4cCI6MTc0NDg4ODI5OX0.x6eF12sDIPBpnOBkkK7CDO6fMxM-hzUVymYQOKS-7pQ"; // Reemplaza con tu token real
 
   const fetchData = async () => {
     try {
-      const response = await fetch("http://localhost:4000/api/test", {
+      const response = await fetch("http://localhost:3001/api/test", {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -41,7 +42,9 @@ export default function TestPage() {
       >
         🔄 Probar conexión
       </button>
-      <pre className="mt-4 p-4 bg-gray-100 border">{data || error || "Cargando..."}</pre>
+      <pre className="mt-4 p-4 bg-gray-100 border">
+        {data || error || "Cargando..."}
+      </pre>
     </div>
   );
 }

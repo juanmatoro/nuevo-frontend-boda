@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
+import axiosInstance from "@/services/axiosInstance";
 
 interface Boda {
   _id: string;
@@ -42,20 +43,15 @@ export default function BodaDetalles() {
 
     const fetchBoda = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:4000/api/bodas/${bodaId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!response.ok) {
-          throw new Error("No se pudo cargar la boda.");
-        }
-
-        const data = await response.json();
-        setBoda(data);
-        setFormData(data);
+        const response = await axiosInstance.get(`/bodas/${bodaId}`);
+        setBoda(response.data);
+        setFormData(response.data);
       } catch (err: any) {
-        setError(err.message);
+        const msg =
+          err.response?.data?.message ||
+          err.message ||
+          "Error al cargar la boda.";
+        setError(msg);
       }
     };
 
@@ -70,7 +66,9 @@ export default function BodaDetalles() {
     setIsEditing(false);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     if (formData) {
       setFormData({ ...formData, [e.target.name]: e.target.value });
     }
@@ -81,26 +79,15 @@ export default function BodaDetalles() {
     setError(null);
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:4000/api/bodas/${bodaId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Error al actualizar la boda.");
-      }
-
-      setBoda(data);
+      const response = await axiosInstance.put(`/bodas/${bodaId}`, formData);
+      setBoda(response.data);
       setIsEditing(false);
     } catch (err: any) {
-      setError(err.message);
+      const msg =
+        err.response?.data?.message ||
+        err.message ||
+        "Error al actualizar la boda.";
+      setError(msg);
     }
   };
 
@@ -111,7 +98,9 @@ export default function BodaDetalles() {
       {boda ? (
         <>
           <h2 className="text-2xl font-bold">💍 {boda.nombre}</h2>
-          <p className="text-gray-600">📅 {new Date(boda.fecha).toLocaleDateString()}</p>
+          <p className="text-gray-600">
+            📅 {new Date(boda.fecha).toLocaleDateString()}
+          </p>
           <p className="text-gray-600">📍 {boda.ubicacion}</p>
           <p className="text-gray-600">📞 {boda.whatsappNumber}</p>
           <p className="text-gray-600">📋 {boda.detalles || "Sin detalles"}</p>
@@ -142,7 +131,6 @@ export default function BodaDetalles() {
             ✏️ Editar Boda
           </button>
 
-          {/* Modal de edición */}
           {isEditing && formData && (
             <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
               <div className="bg-white p-6 rounded-lg shadow-lg w-96">
@@ -166,7 +154,9 @@ export default function BodaDetalles() {
                     <input
                       type="date"
                       name="fecha"
-                      value={new Date(formData.fecha).toISOString().split("T")[0]}
+                      value={
+                        new Date(formData.fecha).toISOString().split("T")[0]
+                      }
                       onChange={handleChange}
                       required
                       className="w-full px-4 py-2 border rounded-lg"
@@ -196,7 +186,9 @@ export default function BodaDetalles() {
                   </div>
 
                   <div>
-                    <label className="block font-medium">Número de WhatsApp</label>
+                    <label className="block font-medium">
+                      Número de WhatsApp
+                    </label>
                     <input
                       type="text"
                       name="whatsappNumber"
@@ -208,10 +200,17 @@ export default function BodaDetalles() {
                   </div>
 
                   <div className="flex justify-end space-x-2 mt-4">
-                    <button type="button" onClick={handleClose} className="bg-gray-400 text-white px-4 py-2 rounded">
+                    <button
+                      type="button"
+                      onClick={handleClose}
+                      className="bg-gray-400 text-white px-4 py-2 rounded"
+                    >
                       Cancelar
                     </button>
-                    <button type="submit" className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
+                    <button
+                      type="submit"
+                      className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+                    >
                       Guardar Cambios
                     </button>
                   </div>

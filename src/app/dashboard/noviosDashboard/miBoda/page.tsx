@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import EstadisticasBoda from "@/app/components/common/EstadisticasBoda";
+import axiosInstance from "@/services/axiosInstance";
 
 interface Boda {
   _id: string;
@@ -37,21 +38,14 @@ export default function MiBoda() {
           return;
         }
 
-        const response = await fetch(
-          `http://localhost:4000/api/bodas/${user.bodaId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("No se pudieron obtener los datos de la boda.");
-        }
-
-        const data = await response.json();
-        setBoda(data);
+        const response = await axiosInstance.get(`/bodas/${user.bodaId}`);
+        setBoda(response.data);
       } catch (err: any) {
-        setError(err.message);
+        const msg =
+          err.response?.data?.message ||
+          err.message ||
+          "Error al cargar la boda.";
+        setError(msg);
       }
     };
 
@@ -75,7 +69,7 @@ export default function MiBoda() {
               {new Date(boda.fecha).toLocaleDateString()}
             </p>
             <p className="text-gray-600">
-              <strong>📞 WhatsApp:</strong> {boda.whatsappNumber}{" "}
+              <strong>📞 WhatsApp:</strong> {boda.whatsappNumber}
             </p>
             <p className="text-gray-600">
               <strong>📍 Ubicación:</strong> {boda.ubicacion}
@@ -84,6 +78,7 @@ export default function MiBoda() {
               <strong>📜 Detalles:</strong> {boda.detalles || "Sin detalles"}
             </p>
           </div>
+
           <div className="bg-green-100 p-4 rounded-lg">
             <h2 className="text-2xl font-bold mb-4">📊 Gestión de Invitados</h2>
             <EstadisticasBoda />

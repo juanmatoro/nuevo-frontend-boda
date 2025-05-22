@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { BroadcastList, NuevaListaDifusion } from "@/interfaces/broadcast";
+import axiosInstance from "@/services/axiosInstance";
 
 export function useBroadcastLists(bodaId: string, token: string) {
   const [listas, setListas] = useState<BroadcastList[]>([]);
@@ -13,18 +14,12 @@ export function useBroadcastLists(bodaId: string, token: string) {
 
     const fetchListas = async () => {
       try {
-        const response = await fetch(
-          `http://localhost:4000/api/lists?bodaId=${bodaId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+        const response = await axiosInstance.get(`/lists`, {
+          params: { bodaId },
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-        if (!response.ok)
-          throw new Error("Error al obtener listas de difusión");
-
-        const data = await response.json();
-        setListas(Array.isArray(data) ? data : []);
+        setListas(Array.isArray(response.data) ? response.data : []);
       } catch (err) {
         setError("No se pudieron cargar las listas");
       } finally {
@@ -38,77 +33,47 @@ export function useBroadcastLists(bodaId: string, token: string) {
   // 📌 Crear una nueva lista de difusión
   const crearLista = async (nuevaLista: NuevaListaDifusion) => {
     try {
-      const response = await fetch("http://localhost:4000/api/lists", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...nuevaLista,
-          bodaId,
-        }),
-      });
+      const response = await axiosInstance.post(
+        `/lists`,
+        { ...nuevaLista, bodaId },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
-      if (!response.ok) throw new Error("Error al crear la lista de difusión");
-
-      const listaCreada = await response.json();
-      setListas((prev) => [...prev, listaCreada.lista]); // Actualizar la UI
+      setListas((prev) => [...prev, response.data.lista]);
     } catch (err) {
       setError("No se pudo crear la lista");
     }
   };
 
-  // 📌 **Eliminar una lista de difusión**
+  // 📌 Eliminar una lista de difusión
   const eliminarLista = async (listaId: string) => {
     try {
-      const response = await fetch(
-        `http://localhost:4000/api/lists/${listaId}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      await axiosInstance.delete(`/lists/${listaId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (!response.ok) throw new Error("Error al eliminar la lista");
-
-      setListas((prev) => prev.filter((lista) => lista._id !== listaId)); // Actualizar la UI tras eliminar
+      setListas((prev) => prev.filter((lista) => lista._id !== listaId));
     } catch (err) {
       setError("No se pudo eliminar la lista");
     }
   };
 
+  // 📌 Editar una lista de difusión
   const editarLista = async (
     listaId: string,
     datos: { nombre: string; invitados: string[] }
   ) => {
     try {
-      if (!token || !bodaId) {
-        console.error("❌ Error: Token o bodaId no disponible.");
-        return;
-      }
+      const response = await axiosInstance.put(`/lists/${listaId}`, datos, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      const response = await fetch(
-        `http://localhost:4000/api/lists/${listaId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(datos),
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("❌ Error en la respuesta del servidor:", errorText);
-        throw new Error("Error al editar la lista");
-      }
-
-      const updatedList = await response.json();
       setListas((prev) =>
-        prev.map((lista) => (lista._id === listaId ? updatedList.lista : lista))
+        prev.map((lista) =>
+          lista._id === listaId ? response.data.lista : lista
+        )
       );
     } catch (err) {
       console.error("❌ Error en editarLista:", err);
@@ -121,7 +86,7 @@ export function useBroadcastLists(bodaId: string, token: string) {
     loading,
     error,
     crearLista,
-    eliminarLista, // ⬅️ Ahora este método está disponible para usar en el frontend
+    eliminarLista,
     editarLista,
   };
 }

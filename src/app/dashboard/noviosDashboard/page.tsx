@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import axiosInstance from "@/services/axiosInstance";
 
 interface Usuario {
   _id: string;
@@ -44,19 +44,19 @@ export default function DashboardNovio() {
 
         setUsuario(user);
 
-        // Obtener los detalles de la boda del usuario
-        const response = await fetch(`http://localhost:4000/api/bodas/${user.bodaId}`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const response = await axiosInstance.get(`/bodas/${user.bodaId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
 
-        if (!response.ok) {
-          throw new Error("No se pudo cargar la boda.");
-        }
-
-        const bodaData = await response.json();
-        setBoda(bodaData);
+        setBoda(response.data);
       } catch (err: any) {
-        setError(err.message);
+        const msg =
+          err.response?.data?.message ||
+          err.message ||
+          "Error al cargar la boda.";
+        setError(msg);
       }
     };
 
@@ -69,12 +69,20 @@ export default function DashboardNovio() {
 
       {usuario && boda ? (
         <>
-          <h2 className="text-2xl font-bold">🎉 Bienvenido, {usuario.nombre}</h2>
+          <h2 className="text-2xl font-bold">
+            🎉 Bienvenido, {usuario.nombre}
+          </h2>
           <p className="text-gray-600">💍 Tu boda: {boda.nombre}</p>
-          <p className="text-gray-600">📅 Fecha: {new Date(boda.fecha).toLocaleDateString()}</p>
+          <p className="text-gray-600">
+            📅 Fecha: {new Date(boda.fecha).toLocaleDateString()}
+          </p>
           <p className="text-gray-600">📍 Ubicación: {boda.ubicacion}</p>
-          <br/>
-          <p className="text-gray-600">📌 Desde el menú de la izquierda podras realizar las gestiones de tu boda, si tienes alguna duda o algún comentario consulta con tu admin</p>
+          <br />
+          <p className="text-gray-600">
+            📌 Desde el menú de la izquierda podrás realizar las gestiones de tu
+            boda, si tienes alguna duda o algún comentario consulta con tu
+            admin.
+          </p>
         </>
       ) : (
         <p>Cargando...</p>

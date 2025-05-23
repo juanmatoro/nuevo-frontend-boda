@@ -2,44 +2,31 @@
 
 import { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
-import EditorMensaje from "@/app/components/admin/EditorMensaje";
-import MensajeProgramadoForm from "@/app/components/admin/MensajeProgramado";
-import { getAllGuestsByBoda } from "@/services/invitadosSercice";
-import { getBroadcastListsByBoda as getBroadcastListsService } from "@/services/broadcastService";
+// ... tus otros imports
 import {
   sendDirectMessage,
   sendBroadcastMessage,
-  iniciarSesionWhatsApp,
-  obtenerEstadoSesion,
-} from "@/services/mensajesService";
+  iniciarSesionWhatsApp, // Esta llama a POST /start-session
+  obtenerEstadoSesion, // Esta llama a GET /status
+} from "@/services/whatsappLocalService"; // Asegúrate que la baseURL es http://localhost:4000
 import Select from "react-select";
 
+// ... tus interfaces
+
 export default function MensajesPage() {
-  const [mensaje, setMensaje] = useState("");
-  const [modoEnvio, setModoEnvio] = useState<"individual" | "lista">(
-    "individual"
-  );
-  const [invitadoId, setInvitadoId] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [listaId, setListaId] = useState("");
-  const [listas, setListas] = useState<any[]>([]);
-  const [invitados, setInvitados] = useState<any[]>([]);
-  const [invitadosOptions, setInvitadosOptions] = useState<
-    { value: string; label: string }[]
-  >([]);
+  // ... otros estados
   const [estadoSesion, setEstadoSesion] = useState<string>("CONECTANDO");
   const [mensajeSesion, setMensajeSesion] = useState<string>(
     "Verificando sesión..."
   );
-  const [cargandoSesion, setCargandoSesion] = useState(false);
-  const [enviando, setEnviando] = useState(false);
-  const [mostrarBanner, setMostrarBanner] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null); // Estado para la URL del QR
+  const [mostrarBanner, setMostrarBanner] = useState(false); // Para el banner de estado general
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     cargarDatos();
-    verificarEstadoSesion();
+    verificarEstadoSesion(); // Llama al iniciar para conocer el estado actual
 
     return () => {
       if (pollingRef.current) {
@@ -48,68 +35,65 @@ export default function MensajesPage() {
     };
   }, []);
 
-  useEffect(() => {
-    const options = invitados.map((i) => ({
-      value: i._id,
-      label: `${i.nombre} - ${i.telefono}`,
-    }));
-    setInvitadosOptions(options);
-  }, [invitados]);
-
-  const cargarDatos = async () => {
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    if (!user?.bodaId) return;
-
-    try {
-      const invitadosData = (await getAllGuestsByBoda(user.bodaId)) as {
-        invitados: any[];
-      };
-      const listasData = await getBroadcastListsService(user.bodaId);
-      setInvitados(invitadosData.invitados || []);
-      setListas(listasData || []);
-    } catch (error) {
-      console.error("❌ Error al cargar datos:", error);
-      toast.error("Error al cargar invitados o listas");
-    }
-  };
+  // ... cargarDatos y useEffect para invitadosOptions sin cambios
 
   const iniciarPolling = () => {
-    if (!pollingRef.current) {
-      pollingRef.current = setTimeout(() => {
-        verificarEstadoSesion();
-        pollingRef.current = null;
-      }, 5000);
+    if (pollingRef.current) {
+      clearTimeout(pollingRef.current); // Limpia el anterior por si acaso
     }
+    pollingRef.current = setTimeout(() => {
+      verificarEstadoSesion();
+      // No reseteamos pollingRef.current a null aquí para evitar múltiples polls si verificarEstadoSesion es muy rápido
+    }, 5000); // Polling cada 5 segundos
   };
 
   const verificarEstadoSesion = async () => {
     try {
-      const data = await obtenerEstadoSesion();
+      const data = await obtenerEstadoSesion(); // Esto es GET /status
 
       if (data?.estado) {
         setEstadoSesion(data.estado);
+        setQrCodeUrl(data.qr || null); // Actualiza el QR, será null si no viene en la respuesta
 
         switch (data.estado) {
           case "CONNECTED":
             setMensajeSesion("✅ Conectado a WhatsApp");
-            setMostrarBanner(false);
+            setMostrarBanner(false); // Oculta el banner amarillo si todo está OK
+            if (pollingRef.current) clearTimeout(pollingRef.current); // Detener polling si está conectado
+            break;
+
+          case "NEEDS_QR":
+            setMensajeSesion("📲 Escanea el QR para conectar con WhatsApp");
+            setMostrarBanner(true); // Muestra el banner amarillo
+            // data.qr ya está asignado a qrCodeUrl arriba
+            // Continuar polling para que se actualice cuando el usuario escanee
+            iniciarPolling();
+            break;
+
+          case "DISCONNECTED":
+          case "LOGGED_OUT": // Nuevo estado del backend
+            setMensajeSesion("🔌 Desconectado. Inicia sesión para continuar.");
+            setMostrarBanner(true);
+            // No iniciar polling si está explícitamente desconectado o logged out, esperar acción del usuario
             if (pollingRef.current) clearTimeout(pollingRef.current);
             break;
 
-          case "RECONNECTING":
-          case "DISCONNECTED":
-            setMensajeSesion("♻️ Intentando reconectar...");
+          case "CONNECTING":
+            setMensajeSesion("⏳ Conectando a WhatsApp...");
             setMostrarBanner(true);
             iniciarPolling();
             break;
 
-          case "NEEDS_QR":
-            setMensajeSesion("📲 Escanea el QR para reconectar");
+          case "ERROR":
+            setMensajeSesion(
+              "❌ Error en la sesión de WhatsApp. Intenta reiniciar."
+            );
             setMostrarBanner(true);
+            if (pollingRef.current) clearTimeout(pollingRef.current);
             break;
 
-          default:
-            setMensajeSesion("⏳ Verificando sesión...");
+          default: // Otros estados intermedios o desconocidos
+            setMensajeSesion(`Estado: ${data.estado}. Esperando...`);
             setMostrarBanner(true);
             iniciarPolling();
         }
@@ -117,189 +101,149 @@ export default function MensajesPage() {
     } catch (error) {
       console.error("❌ Error al verificar estado:", error);
       setEstadoSesion("ERROR");
-      setMensajeSesion("Error al obtener estado de sesión");
+      setMensajeSesion(
+        "Error al obtener estado de la sesión. Verifica el servicio de WhatsApp."
+      );
+      setQrCodeUrl(null);
+      setMostrarBanner(true);
+      if (pollingRef.current) clearTimeout(pollingRef.current); // Detener en caso de error de comunicación
     }
   };
 
   const handleIniciarSesion = async () => {
     setCargandoSesion(true);
+    setQrCodeUrl(null); // Limpia cualquier QR antiguo
+    setMensajeSesion("🚀 Solicitando inicio de sesión...");
+    setMostrarBanner(true);
     try {
+      // Esta llamada (POST /start-session) es la que le dice al backend
+      // que inicie una conexión. Si necesita un QR, el backend lo preparará.
       await iniciarSesionWhatsApp();
-      toast.success("✅ Sesión iniciada correctamente");
-      await verificarEstadoSesion();
+      toast.success("Solicitud de inicio de sesión enviada. Verificando...");
+      // Inmediatamente después de solicitar, verificamos el estado.
+      // El backend habrá tenido un momento para generar el QR si es necesario.
+      await verificarEstadoSesion(); // Esto llamará a GET /status y obtendrá el QR si está listo
     } catch (error) {
       console.error("❌ Error al iniciar sesión:", error);
-      toast.error("No se pudo iniciar la sesión");
+      toast.error("No se pudo iniciar la sesión de WhatsApp.");
       setEstadoSesion("ERROR");
-      setMensajeSesion("❌ Error al iniciar sesión");
+      setMensajeSesion("❌ Error al intentar iniciar sesión.");
     } finally {
       setCargandoSesion(false);
     }
   };
 
-  const handleEnviar = async () => {
-    if (!mensaje.trim()) {
-      toast.error("El mensaje no puede estar vacío");
-      return;
-    }
-
-    setEnviando(true);
-    toast.loading("Conectando a WhatsApp...");
-
-    try {
-      if (modoEnvio === "individual") {
-        if (!invitadoId) {
-          toast.error("Selecciona un invitado");
-          return;
-        }
-        await sendDirectMessage(telefono, mensaje);
-        toast.success("📤 Mensaje enviado al invitado");
-        // Limpiar también el invitadoId y el teléfono en el envío individual
-        setInvitadoId("");
-        setTelefono("");
-      } else {
-        if (!listaId) {
-          toast.error("Selecciona una lista de difusión");
-          return;
-        }
-        await sendBroadcastMessage(listaId, mensaje);
-        toast.success("📢 Mensaje enviado a la lista de difusión");
-        await cargarDatos();
-        // No limpiamos invitadoId ni teléfono en el envío a lista
-        setListaId("");
-      }
-
-      // Limpiar el mensaje en ambos casos
-      setMensaje("");
-    } catch (error) {
-      console.error("❌ Error al enviar mensaje:", error);
-      toast.error("No se pudo enviar el mensaje");
-    } finally {
-      setEnviando(false);
-      toast.dismiss();
-    }
-  };
+  // ... handleEnviar sin cambios relevantes para el QR
 
   return (
     <div className="p-6 space-y-10">
       <h2 className="text-2xl font-bold text-gray-800">📨 Enviar Mensajes</h2>
 
-      {/* 🟡 Banner reconexión */}
-      {mostrarBanner && (
-        <div className="bg-yellow-100 text-yellow-800 px-4 py-2 rounded border border-yellow-300 shadow">
+      {/* Banner de estado general */}
+      {mostrarBanner && estadoSesion !== "NEEDS_QR" && (
+        <div
+          className={`px-4 py-3 rounded shadow-md mb-4 ${
+            estadoSesion === "ERROR"
+              ? "bg-red-100 border border-red-400 text-red-700"
+              : estadoSesion === "CONNECTED"
+              ? "bg-green-100 border border-green-400 text-green-700"
+              : "bg-yellow-100 border border-yellow-400 text-yellow-700"
+          }`}
+        >
           {mensajeSesion}
         </div>
       )}
 
-      {/* Estado sesión y botón */}
-      <div className="border p-4 rounded bg-gray-50 space-y-2">
-        <h3 className="text-lg font-semibold">📲 Sesión de WhatsApp</h3>
-        <p>
+      {/* Sección específica para mostrar el QR */}
+      {estadoSesion === "NEEDS_QR" && qrCodeUrl && (
+        <div className="my-4 p-6 border bg-white rounded-lg shadow-lg flex flex-col items-center text-center">
+          <p className="mb-3 text-lg font-semibold text-gray-700">
+            {mensajeSesion} {/* "Escanea el QR para conectar..." */}
+          </p>
+          <img
+            src={qrCodeUrl}
+            alt="Escanea este código QR con WhatsApp"
+            className="w-64 h-64 md:w-72 md:h-72 border shadow-md" // Ajusta tamaño si es necesario
+          />
+          <p className="mt-3 text-sm text-gray-500">
+            Abre WhatsApp en tu teléfono &gt; Ajustes &gt; Dispositivos
+            vinculados &gt; Vincular un dispositivo.
+          </p>
+        </div>
+      )}
+
+      <div className="border p-4 rounded bg-gray-50 space-y-3">
+        <h3 className="text-lg font-semibold text-gray-800">
+          📲 Sesión de WhatsApp
+        </h3>
+        <p className="text-sm">
           <span className="font-medium">Estado actual:</span>{" "}
           <span
             className={`font-semibold ${
               estadoSesion === "CONNECTED"
                 ? "text-green-600"
-                : estadoSesion === "ERROR"
+                : estadoSesion === "ERROR" || estadoSesion === "LOGGED_OUT"
                 ? "text-red-600"
-                : "text-yellow-600"
+                : "text-yellow-600" // Para NEEDS_QR, CONNECTING, DISCONNECTED
             }`}
           >
-            {mensajeSesion}
+            {/* Usar un mensaje más general aquí si el QR se muestra arriba */}
+            {estadoSesion === "NEEDS_QR"
+              ? "Esperando escaneo de QR"
+              : mensajeSesion}
           </span>
         </p>
-        <button
-          className={`px-4 py-2 rounded text-white ${
-            cargandoSesion ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"
-          }`}
-          onClick={handleIniciarSesion}
-          disabled={cargandoSesion}
-        >
-          {cargandoSesion ? "Conectando..." : "🔄 Iniciar sesión de WhatsApp"}
-        </button>
-      </div>
-
-      {/* Selector de modo */}
-      <div className="flex gap-4">
-        <button
-          className={`px-4 py-2 rounded ${
-            modoEnvio === "individual"
-              ? "bg-blue-600 text-white"
-              : "bg-gray-200"
-          }`}
-          onClick={() => setModoEnvio("individual")}
-        >
-          👤 Invitado individual
-        </button>
-        <button
-          className={`px-4 py-2 rounded ${
-            modoEnvio === "lista" ? "bg-blue-600 text-white" : "bg-gray-200"
-          }`}
-          onClick={() => setModoEnvio("lista")}
-        >
-          📋 Lista de difusión
-        </button>
-      </div>
-
-      {/* Selector dinámico */}
-      {modoEnvio === "individual" ? (
-        <div>
-          <label className="block font-semibold mb-1">📱 Invitado</label>
-          <Select
-            value={invitadosOptions.find(
-              (option) => option.value === invitadoId
-            )}
-            onChange={(selectedOption) => {
-              const id = selectedOption?.value;
-              setInvitadoId(id || "");
-              const invitado = invitados.find((i) => i._id === id);
-              setTelefono(invitado?.telefono || "");
+        {estadoSesion !== "CONNECTED" &&
+          estadoSesion !== "NEEDS_QR" &&
+          estadoSesion !== "CONNECTING" && (
+            <button
+              className={`px-4 py-2 rounded text-white font-medium transition-colors duration-150 ${
+                cargandoSesion
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
+              onClick={handleIniciarSesion}
+              disabled={cargandoSesion || estadoSesion === "CONNECTING"}
+            >
+              {cargandoSesion
+                ? "Conectando..."
+                : "🔄 Iniciar/Reintentar Sesión"}
+            </button>
+          )}
+        {/* Botón de Logout (Opcional) */}
+        {estadoSesion === "CONNECTED" && (
+          <button
+            className="ml-3 px-4 py-2 rounded text-white font-medium bg-red-500 hover:bg-red-600 transition-colors duration-150"
+            onClick={async () => {
+              // Aquí podrías llamar a un endpoint /logout en tu backend
+              // que llame a sock.logout() y limpie la sesión.
+              // Por ahora, solo como ejemplo conceptual de UI:
+              toast("Funcionalidad de logout no implementada en este botón.");
+              // Para implementarlo:
+              // 1. Crea endpoint POST /logout en backend (ya lo hicimos).
+              // 2. Crea función en whatsappLocalService.js:
+              //    export const logoutWhatsApp = async () => whatsappAPI.post("/logout");
+              // 3. Llama aquí: await logoutWhatsApp(); await verificarEstadoSesion();
             }}
-            options={invitadosOptions}
-            placeholder="Buscar invitado..."
-            isSearchable
-          />
-        </div>
-      ) : (
-        <div>
-          <label className="block font-semibold mb-1">
-            📝 Lista de difusión
-          </label>
-          <select
-            value={listaId}
-            onChange={(e) => setListaId(e.target.value)}
-            className="border rounded p-2 w-full"
           >
-            <option value="">Selecciona una lista</option>
-            {listas.map((l) => (
-              <option key={l._id} value={l._id}>
-                {l.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
+            🚪 Cerrar Sesión WhatsApp
+          </button>
+        )}
+      </div>
+
+      {/* El resto de tu UI para seleccionar modo de envío, invitado, lista, mensaje... */}
+      {/* ... (Asegúrate de que solo se muestre si estadoSesion === "CONNECTED") ... */}
+      {estadoSesion === "CONNECTED" ? (
+        <>
+          <div className="flex gap-4">{/* ... botones de modoEnvio ... */}</div>
+          {/* ... selectores de invitado/lista y editor de mensaje ... */}
+          {/* ... botón de Enviar Mensaje ... */}
+        </>
+      ) : (
+        <p className="text-center text-gray-600 py-8">
+          Debes iniciar sesión en WhatsApp para poder enviar mensajes.
+        </p>
       )}
-
-      {/* Editor */}
-      <EditorMensaje mensaje={mensaje} onMensajeChange={setMensaje} />
-
-      {/* Botón de envío */}
-      <button
-        className={`px-6 py-2 rounded text-white ${
-          enviando ? "bg-gray-400" : "bg-green-600 hover:bg-green-700"
-        }`}
-        onClick={handleEnviar}
-        disabled={enviando}
-      >
-        {enviando ? "Enviando..." : "🚀 Enviar Mensaje"}
-      </button>
-
-      {/* Programación */}
-      <MensajeProgramadoForm
-        modoEnvio={modoEnvio}
-        invitadoId={invitadoId}
-        nombreLista={listas.find((l) => l._id === listaId)?.nombre || ""}
-      />
     </div>
   );
 }

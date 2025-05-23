@@ -1,7 +1,9 @@
+// src/services/whatsappLocalService.ts o .js
+
 import axios from "axios";
 
 const whatsappAPI = axios.create({
-  baseURL: "http://localhost:4000", // actualiza si es necesario
+  baseURL: "http://localhost:4003", // Asegúrate que esta URL es correcta
 });
 
 export const sendDirectMessage = async (telefono: string, mensaje: string) => {
@@ -10,11 +12,11 @@ export const sendDirectMessage = async (telefono: string, mensaje: string) => {
 };
 
 export const sendBroadcastMessage = async (
-  nombreLista: string,
+  telefonos: string[], // Cambiado de nombreLista a telefonos (array de strings)
   mensaje: string
 ) => {
   const response = await whatsappAPI.post("/broadcast", {
-    nombreLista,
+    telefonos, // Enviar el array de teléfonos
     mensaje,
   });
   return response.data;
@@ -27,5 +29,10 @@ export const obtenerEstadoSesion = async () => {
 
 export const iniciarSesionWhatsApp = async () => {
   const response = await whatsappAPI.post("/start-session");
+  return response.data;
+};
+
+export const logoutWhatsApp = async () => {
+  const response = await whatsappAPI.post("/logout");
   return response.data;
 };

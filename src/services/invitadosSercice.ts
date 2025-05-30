@@ -17,16 +17,16 @@ export const updateInvitado = async (id: string, data: Partial<Invitado>) => {
 export const getInvitadosByBoda = async (
   bodaId: string,
   page: number = 1,
-  limit: number = 10
+  limit: number = 20
 ) => {
   const response = await axios.get(
-    `/guests/invitados/${bodaId}?page=${page}&limit=${limit}`
+    `/guests/boda/${bodaId}?page=${page}&limit=${limit}`
   );
   return response.data;
 };
 
 export const getAllGuestsByBoda = async (bodaId: string) => {
-  const response = await axios.get(`/guests/all-by-boda/${bodaId}`);
+  const response = await axios.get(`/guests/actions/all-by-boda/${bodaId}`);
   return response.data;
 };
 

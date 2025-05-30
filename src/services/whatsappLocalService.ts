@@ -1,9 +1,11 @@
-// src/services/whatsappLocalService.ts o .js
+// src/services/whatsappLocalService.ts
 
 import axios from "axios";
 
+const RAILWAY_APP_URL = "https://whatsapp.celebra-conmigo.com"; // <-- PEGA TU URL DE RAILWAY AQUÍ
+
 const whatsappAPI = axios.create({
-  baseURL: "http://localhost:4003", // Asegúrate que esta URL es correcta
+  baseURL: RAILWAY_APP_URL, // Asegúrate de que sea la URL base completa
 });
 
 export const sendDirectMessage = async (telefono: string, mensaje: string) => {
@@ -12,23 +14,23 @@ export const sendDirectMessage = async (telefono: string, mensaje: string) => {
 };
 
 export const sendBroadcastMessage = async (
-  telefonos: string[], // Cambiado de nombreLista a telefonos (array de strings)
+  telefonos: string[],
   mensaje: string
 ) => {
   const response = await whatsappAPI.post("/broadcast", {
-    telefonos, // Enviar el array de teléfonos
+    telefonos,
     mensaje,
   });
   return response.data;
 };
 
 export const obtenerEstadoSesion = async () => {
-  const response = await whatsappAPI.get("/status");
+  const response = await whatsappAPI.get("/status"); // Irá a RAILWAY_APP_URL/status
   return response.data;
 };
 
 export const iniciarSesionWhatsApp = async () => {
-  const response = await whatsappAPI.post("/start-session");
+  const response = await whatsappAPI.post("/start-session"); // Irá a RAILWAY_APP_URL/start-session
   return response.data;
 };
 

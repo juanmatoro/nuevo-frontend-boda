@@ -1,5 +1,6 @@
 import axios from "./axiosInstance";
 import { Invitado } from "@/interfaces/invitado";
+import apiClient from "./apiClient";
 
 // 📌 Obtener un invitado por ID
 export const getInvitadoById = async (id: string) => {
@@ -17,10 +18,10 @@ export const updateInvitado = async (id: string, data: Partial<Invitado>) => {
 export const getInvitadosByBoda = async (
   bodaId: string,
   page: number = 1,
-  limit: number = 10
+  limit: number = 20
 ) => {
   const response = await axios.get(
-    `/guests/invitados/${bodaId}?page=${page}&limit=${limit}`
+    `/guests/boda/${bodaId}?page=${page}&limit=${limit}`
   );
   return response.data;
 };
@@ -104,5 +105,40 @@ export const updateRespuestasInvitado = async (
   });
   return response.data;
 };
+/**
+ * Obtiene solo los invitados de una boda que aún no han recibido la invitación inicial.
+ * Llama al endpoint de 'obtenerInvitados' pero con filtros específicos.
+ * @param bodaId - El ID de la boda para la cual se quieren obtener los invitados pendientes.
+ * @returns Una promesa que se resuelve en un array de Invitado.
+ */
+export const getPendingGuestsByBoda = async (
+  bodaId: string
+): Promise<Invitado[]> => {
+  if (!bodaId) {
+    console.warn("getPendingGuestsByBoda: Se requiere un bodaId.");
+    return [];
+  }
 
+  try {
+    // Construimos los parámetros de la consulta (query params)
+    const params = new URLSearchParams({
+      messageSentInitialInvitation: "false", // Filtra por los que NO han recibido invitación
+      status: "true", // Asegura que solo sean invitados activos
+      limit: "1000", // Pide un límite alto para traerlos a todos de una vez
+    });
+
+    // Tu ruta actual para obtener invitados es /invitados/:bodaId según tu router
+    // o /boda/:bodaId si la cambiaste. Ajusta si es necesario.
+    const endpoint = `/guests/boda/${bodaId}?${params.toString()}`;
+
+    const response = await apiClient.get(endpoint);
+
+    // El token JWT del novio se añade automáticamente por el interceptor de apiClient
+    // El backend devuelve { ok: true, invitados: [...] }
+    return response.data.invitados || [];
+  } catch (error) {
+    console.error("Error al obtener los invitados pendientes:", error);
+    throw error; // Relanza el error para que el componente que llama lo pueda manejar
+  }
+};
 // 📌 Obtener estadísticas de respuestas por pregunta

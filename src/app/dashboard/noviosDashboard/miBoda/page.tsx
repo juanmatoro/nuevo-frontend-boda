@@ -9,6 +9,7 @@ import axiosInstance from "@/services/axiosInstance";
 interface Boda {
   _id: string;
   nombre: string;
+  novios: string[];
   fecha: string;
   ubicacion: string;
   detalles: string;

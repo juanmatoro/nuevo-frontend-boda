@@ -1,9 +1,14 @@
+// src/app/admin/mensajes/MensajesPage.tsx (o la ruta que tengas)
 "use client";
 
 import { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
-import Select from "react-select";
-import { getAllGuestsByBoda } from "@/services/invitadosSercice";
+import EditorMensaje from "@/app/components/admin/EditorMensaje";
+import MensajeProgramadoForm from "@/app/components/admin/MensajeProgramado";
+import {
+  getAllGuestsByBoda,
+  getInvitadosByBoda,
+} from "@/services/invitadosSercice";
 import { getBroadcastListsByBoda as getBroadcastListsService } from "@/services/broadcastService";
 import {
   sendDirectMessage,
@@ -12,12 +17,8 @@ import {
   obtenerEstadoSesion,
   logoutWhatsApp,
 } from "@/services/whatsappLocalService";
+import Select from "react-select";
 
-// Componentes de la UI
-import EditorMensaje from "@/app/components/admin/EditorMensaje";
-import EnviarInvitacionModal from "@/app/components/admin/EnviarInvitacionModal"; // ▼▼▼ NUEVO/MODIFICADO ▼▼▼
-
-// Interfaces
 interface Invitado {
   _id: string;
   nombre: string;
@@ -27,10 +28,10 @@ interface Invitado {
 interface ListaDifusion {
   _id: string;
   nombre: string;
-  invitados: Invitado[];
+  invitados: Invitado[]; // Asumimos que el servicio carga los invitados (con teléfono) aquí
 }
 
-// Función de Normalización de Teléfonos (la mantengo aquí como en tu original)
+// // --- FUNCIÓN DE NORMALIZACIÓN DE TELÉFONOS ---
 function normalizePhoneNumber(
   phoneNumber: string,
   defaultCountryCode: string = "34"
@@ -59,9 +60,9 @@ function normalizePhoneNumber(
   }
   return /^\d+$/.test(cleaned) ? cleaned : "";
 }
+// // --- FIN FUNCIÓN DE NORMALIZACIÓN ---
 
 export default function MensajesPage() {
-  // --- Estados para envío de mensajes ad-hoc (tu lógica actual) ---
   const [mensaje, setMensaje] = useState("");
   const [modoEnvio, setModoEnvio] = useState<"individual" | "lista">(
     "individual"
@@ -70,12 +71,10 @@ export default function MensajesPage() {
   const [telefono, setTelefono] = useState("");
   const [listaSeleccionadaId, setListaSeleccionadaId] = useState("");
   const [listasDifusion, setListasDifusion] = useState<ListaDifusion[]>([]);
-  const [invitados, setInvitados] = useState<Invitado[]>([]);
+  const [invitados, setInvitados] = useState<Invitado[]>([]); // Todos los invitados para el selector individual
   const [invitadosOptions, setInvitadosOptions] = useState<
     { value: string; label: string }[]
   >([]);
-
-  // --- Estados para la gestión de la sesión de WhatsApp (tu lógica actual) ---
   const [estadoSesion, setEstadoSesion] = useState<string>("CONECTANDO");
   const [mensajeSesion, setMensajeSesion] = useState<string>(
     "Verificando sesión..."
@@ -83,25 +82,12 @@ export default function MensajesPage() {
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [cargandoSesion, setCargandoSesion] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [mostrarBanner, setMostrarBanner] = useState(false);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
-
-  // ▼▼▼ NUEVO/MODIFICADO ▼▼▼ Estado para controlar el modal de invitaciones y guardar bodaId
   const [isInvitationModalOpen, setIsInvitationModalOpen] = useState(false);
-  const [bodaId, setBodaId] = useState<string>("");
 
   useEffect(() => {
-    const userString = localStorage.getItem("user");
-    if (userString) {
-      const user = JSON.parse(userString);
-      if (user?.bodaId) {
-        setBodaId(user.bodaId); // Guardamos bodaId en el estado para pasarlo al modal
-        cargarDatosIniciales(user.bodaId);
-      } else {
-        toast.error(
-          "ID de boda no encontrado. Asegúrate de haber iniciado sesión correctamente."
-        );
-      }
-    }
+    cargarDatosIniciales();
     verificarEstadoSesion();
     return () => {
       if (pollingRef.current) clearTimeout(pollingRef.current);
@@ -116,12 +102,27 @@ export default function MensajesPage() {
     setInvitadosOptions(options);
   }, [invitados]);
 
-  const cargarDatosIniciales = async (bodaId: string) => {
+  const cargarDatosIniciales = async () => {
+    const userString = localStorage.getItem("user");
+    const user = JSON.parse(userString || "{}");
+    if (!user?.bodaId) {
+      toast.error(
+        "ID de boda no encontrado. Asegúrate de haber iniciado sesión correctamente."
+      );
+      return;
+    }
     try {
-      const invitadosData = await getAllGuestsByBoda(bodaId);
+      // Obtener todos los invitados (para el selector individual)
+      const invitadosData = await getAllGuestsByBoda(user.bodaId);
       setInvitados(invitadosData.invitados || []);
-      const listasData = await getBroadcastListsService(bodaId);
+
+      // Obtener las listas de difusión (que ya incluyen sus invitados)
+      const listasData = await getBroadcastListsService(user.bodaId);
       setListasDifusion(listasData || []);
+      console.log(
+        "Listas de difusión cargadas (esperando que incluyan invitados):",
+        listasData
+      );
     } catch (error) {
       console.error("❌ Error al cargar datos iniciales:", error);
       toast.error("Error al cargar invitados o listas de difusión.");
@@ -134,16 +135,17 @@ export default function MensajesPage() {
   };
 
   const verificarEstadoSesion = async () => {
-    /* ... Tu lógica existente no cambia ... */
     try {
       const data = await obtenerEstadoSesion();
       if (data?.estado) {
         setEstadoSesion(data.estado);
         setQrCodeUrl(data.qr || null);
+        let newBanner = true;
         let newMensajeSesion = "";
         switch (data.estado) {
           case "CONNECTED":
             newMensajeSesion = "✅ Conectado a WhatsApp";
+            newBanner = false;
             if (pollingRef.current) clearTimeout(pollingRef.current);
             break;
           case "NEEDS_QR":
@@ -171,10 +173,12 @@ export default function MensajesPage() {
             iniciarPolling();
         }
         setMensajeSesion(newMensajeSesion);
+        setMostrarBanner(newBanner);
       } else {
         setEstadoSesion("ERROR_SERVICIO");
         setMensajeSesion("⚠️ No se pudo obtener estado del servicio WhatsApp.");
         setQrCodeUrl(null);
+        setMostrarBanner(true);
         if (pollingRef.current) clearTimeout(pollingRef.current);
       }
     } catch (error) {
@@ -182,15 +186,16 @@ export default function MensajesPage() {
       setEstadoSesion("ERROR_SERVICIO");
       setMensajeSesion("Error de comunicación con el servicio de WhatsApp.");
       setQrCodeUrl(null);
+      setMostrarBanner(true);
       if (pollingRef.current) clearTimeout(pollingRef.current);
     }
   };
 
   const handleIniciarSesion = async () => {
-    /* ... Tu lógica existente no cambia ... */
     setCargandoSesion(true);
     setQrCodeUrl(null);
     setMensajeSesion("🚀 Solicitando inicio de sesión...");
+    setMostrarBanner(true);
     try {
       await iniciarSesionWhatsApp();
       toast.success("Solicitud enviada. Verificando...");
@@ -207,7 +212,6 @@ export default function MensajesPage() {
   };
 
   const handleLogout = async () => {
-    /* ... Tu lógica existente no cambia ... */
     const toastId = toast.loading("Cerrando sesión de WhatsApp...");
     try {
       await logoutWhatsApp();
@@ -222,7 +226,6 @@ export default function MensajesPage() {
   };
 
   const handleEnviar = async () => {
-    /* ... Tu lógica existente para enviar mensajes ad-hoc no cambia ... */
     if (!mensaje.trim()) {
       toast.error("El mensaje no puede estar vacío.");
       return;
@@ -231,8 +234,10 @@ export default function MensajesPage() {
       toast.error("WhatsApp no está conectado.");
       return;
     }
+
     setEnviando(true);
     const toastId = toast.loading("Enviando mensaje...");
+
     try {
       if (modoEnvio === "individual") {
         if (!invitadoId || !telefono) {
@@ -255,30 +260,38 @@ export default function MensajesPage() {
         setInvitadoId("");
         setTelefono("");
       } else {
+        // modoEnvio === "lista"
         if (!listaSeleccionadaId) {
           toast.error("Selecciona una lista de difusión.");
           setEnviando(false);
           toast.dismiss(toastId);
           return;
         }
+
         const listaActual = listasDifusion.find(
           (l) => l._id === listaSeleccionadaId
         );
-        if (
-          !listaActual ||
-          !listaActual.invitados ||
-          listaActual.invitados.length === 0
-        ) {
+        if (!listaActual) {
+          toast.error("Lista de difusión no encontrada.");
+          setEnviando(false);
+          toast.dismiss(toastId);
+          return;
+        }
+
+        let telefonosCrudosDeLaLista: string[] = [];
+        if (listaActual.invitados && listaActual.invitados.length > 0) {
+          telefonosCrudosDeLaLista = listaActual.invitados
+            .map((invitado) => invitado.telefono) // Acceder directamente a la propiedad telefono
+            .filter(Boolean) as string[]; // Filtrar nulos, undefined o strings vacíos
+        } else {
           toast.error(
-            `La lista "${listaActual?.nombre}" no tiene invitados o los invitados no tienen teléfono.`
+            `La lista "${listaActual.nombre}" no tiene invitados o los invitados no tienen teléfono.`
           );
           setEnviando(false);
           toast.dismiss(toastId);
           return;
         }
-        const telefonosCrudosDeLaLista = listaActual.invitados
-          .map((inv) => inv.telefono)
-          .filter(Boolean) as string[];
+
         if (telefonosCrudosDeLaLista.length === 0) {
           toast.error(
             `No se encontraron números de teléfono válidos en la lista "${listaActual.nombre}".`
@@ -287,15 +300,18 @@ export default function MensajesPage() {
           toast.dismiss(toastId);
           return;
         }
+
         const telefonosNormalizadosDeLista = telefonosCrudosDeLaLista
           .map((tel) => normalizePhoneNumber(tel))
           .filter((tel) => tel);
+
         if (telefonosNormalizadosDeLista.length === 0) {
           toast.error("Ningún número en la lista es válido tras normalizar.");
           setEnviando(false);
           toast.dismiss(toastId);
           return;
         }
+
         await sendBroadcastMessage(telefonosNormalizadosDeLista, mensaje);
         toast.success(
           `📢 Mensaje enviado a ${telefonosNormalizadosDeLista.length} destinatarios de la lista "${listaActual.nombre}".`
@@ -317,13 +333,45 @@ export default function MensajesPage() {
     }
   };
 
+  // --- El JSX del return no ha cambiado respecto a la última versión completa que te pasé ---
+  // --- Así que lo omito aquí para brevedad, pero usa el que ya tenías ---
+  // Asegúrate de que los IDs de los elementos (si usas alguno para `toast.dismiss(toastId)`) sean correctos.
+  // El toastId que se usa con toast.loading y toast.dismiss es el que devuelve toast.loading(), no un ID de elemento HTML.
+
   return (
     <div className="p-6 space-y-8 max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-3xl font-bold text-gray-800">
-          📨 Enviar Mensajes de WhatsApp
-        </h2>
-      </div>
+      <h2 className="text-3xl font-bold text-gray-800">
+        📨 Enviar Mensajes de WhatsApp
+      </h2>
+
+      {/* Banner y Sección de QR (sin cambios significativos) */}
+      {mostrarBanner && estadoSesion !== "NEEDS_QR" && (
+        <div
+          className={`px-4 py-3 rounded shadow-md mb-4 ${
+            estadoSesion.startsWith("ERROR")
+              ? "bg-red-100 border border-red-400 text-red-700"
+              : "bg-yellow-100 border border-yellow-400 text-yellow-700"
+          }`}
+        >
+          {mensajeSesion}
+        </div>
+      )}
+      {estadoSesion === "NEEDS_QR" && qrCodeUrl && (
+        <div className="my-4 p-6 border bg-white rounded-lg shadow-lg flex flex-col items-center text-center">
+          <p className="mb-3 text-lg font-semibold text-gray-700">
+            {mensajeSesion}
+          </p>
+          <img
+            src={qrCodeUrl}
+            alt="Escanea QR con WhatsApp"
+            className="w-60 h-60 md:w-64 md:h-64 border shadow-md"
+          />
+          <p className="mt-3 text-sm text-gray-500">
+            Abre WhatsApp &gt; Menú o Ajustes &gt; Dispositivos vinculados &gt;
+            Vincular dispositivo.
+          </p>
+        </div>
+      )}
 
       {/* Panel de Estado de Sesión (sin cambios significativos) */}
       <div className="border p-5 rounded-lg bg-gray-50 shadow space-y-3">
@@ -390,7 +438,7 @@ export default function MensajesPage() {
               }`}
               onClick={() => setModoEnvio("individual")}
             >
-              👤 Mensaje Individual
+              👤 Invitado Individual
             </button>
             <button
               className={`px-4 py-2 rounded-md text-sm font-medium ${
@@ -400,17 +448,10 @@ export default function MensajesPage() {
               }`}
               onClick={() => setModoEnvio("lista")}
             >
-              📋 Mensaje a Lista
-            </button>
-
-            {/* ▼▼▼ NUEVO/MODIFICADO: Botón para abrir el modal de invitaciones ▼▼▼ */}
-            <button
-              onClick={() => setIsInvitationModalOpen(true)}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium bg-purple-600 text-white shadow-sm hover:bg-purple-700 transition-colors"
-            >
-              💌 Enviar Invitaciones Iniciales
+              📋 Lista de Difusión
             </button>
           </div>
+
           {modoEnvio === "individual" ? (
             <div className="space-y-3">
               <label
@@ -495,15 +536,6 @@ export default function MensajesPage() {
           ℹ️ Debes iniciar y conectar tu sesión de WhatsApp para poder enviar
           mensajes.
         </p>
-      )}
-
-      {/* ▼▼▼ NUEVO/MODIFICADO: Renderizado del modal ▼▼▼ */}
-      {isInvitationModalOpen && (
-        <EnviarInvitacionModal
-          isOpen={isInvitationModalOpen}
-          onClose={() => setIsInvitationModalOpen(false)}
-          bodaId={bodaId}
-        />
       )}
     </div>
   );

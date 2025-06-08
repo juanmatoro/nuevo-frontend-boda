@@ -1,81 +1,114 @@
+// src/app/admin/mensajes/MensajesPage.tsx (o la ruta que tengas)
 "use client";
 
 import { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
-import Select from "react-select";
-import { getAllGuestsByBoda } from "@/services/invitadosSercice";
-import { getBroadcastListsByBoda as getBroadcastListsService } from "@/services/broadcastService";
+import EditorMensaje from "@/app/components/admin/EditorMensaje"; // Ajusta la ruta si es necesario
+import MensajeProgramadoForm from "@/app/components/admin/MensajeProgramado"; // Ajusta la ruta
+import { getAllGuestsByBoda } from "@/services/invitadosSercice"; // Tus servicios existentes
+import { getBroadcastListsByBoda as getBroadcastListsService } from "@/services/broadcastService"; // Tus servicios
 import {
   sendDirectMessage,
   sendBroadcastMessage,
   iniciarSesionWhatsApp,
   obtenerEstadoSesion,
   logoutWhatsApp,
-} from "@/services/whatsappLocalService";
+} from "@/services/whatsappLocalService"; // Nuestro servicio de WhatsApp
+import Select from "react-select";
 
-// Componentes de la UI
-import EditorMensaje from "@/app/components/admin/EditorMensaje";
-import EnviarInvitacionModal from "@/app/components/admin/EnviarInvitacionModal"; // ▼▼▼ NUEVO/MODIFICADO ▼▼▼
-
-// Interfaces
 interface Invitado {
   _id: string;
   nombre: string;
   telefono: string;
+  // Aquí podrían ir más campos, como un array de IDs de las listas a las que pertenece
 }
 
 interface ListaDifusion {
   _id: string;
   nombre: string;
-  invitados: Invitado[];
+  // Para que el broadcast funcione correctamente, esta interfaz (o los datos que cargas)
+  // debería contener una forma de identificar a los invitados que pertenecen a ella,
+  // por ejemplo, un array de `invitadoIds` o incluso los objetos `Invitado` completos.
+  // Ejemplo:
+  // invitadoIds?: string[];
+  // invitados?: Pick<Invitado, '_id' | 'telefono'>[]; // Solo los campos necesarios
 }
 
-// Función de Normalización de Teléfonos (la mantengo aquí como en tu original)
+// --- FUNCIÓN DE NORMALIZACIÓN DE TELÉFONOS ---
+/**
+ * Normaliza un número de teléfono para asegurar que incluya el código de país.
+ * Asume España (34) como país por defecto si el número parece local.
+ * @param phoneNumber El número de teléfono tal como viene de la BBDD o input.
+ * @param defaultCountryCode El código de país por defecto (ej: "34" para España).
+ * @returns El número normalizado (solo dígitos, con código de país), o cadena vacía si no es válido.
+ */
 function normalizePhoneNumber(
   phoneNumber: string,
   defaultCountryCode: string = "34"
 ): string {
   if (!phoneNumber || typeof phoneNumber !== "string") return "";
+
+  // 1. Limpiar espacios, guiones, paréntesis, etc. Dejar solo dígitos y el posible "+" inicial.
   let cleaned = phoneNumber.trim().replace(/[\s-()]/g, "");
+
+  // 2. Si empieza con "+", quitarlo y procesar el resto.
   if (cleaned.startsWith("+")) {
     cleaned = cleaned.substring(1);
+    // Si después del "+" ya tiene el defaultCountryCode (ej: +34...), está bien.
+    // Si tiene otro código de país (ej: +33...), también se asume correcto.
+    // Validar que el resto sean solo dígitos.
     return /^\d+$/.test(cleaned) ? cleaned : "";
   }
+
+  // 3. Si empieza con "00" seguido del código de país (ej: "0034...")
   if (cleaned.startsWith("00" + defaultCountryCode)) {
+    // Quitar "00" y validar que el resto sean dígitos.
     const numberPart = cleaned.substring(2 + defaultCountryCode.length);
     return /^\d+$/.test(defaultCountryCode + numberPart)
       ? defaultCountryCode + numberPart
       : "";
   }
+
+  // 4. Si ya empieza con el código de país (ej: "346...")
   if (cleaned.startsWith(defaultCountryCode)) {
+    // Validar que el resto sean solo dígitos.
     return /^\d+$/.test(cleaned) ? cleaned : "";
   }
+
+  // 5. Si es un número español local de 9 dígitos (móvil o algunos fijos)
+  //    y no empezó con ninguna de las formas internacionales anteriores.
   if (
     defaultCountryCode === "34" &&
     cleaned.length === 9 &&
     /^[6789]\d{8}$/.test(cleaned)
   ) {
-    return defaultCountryCode + cleaned;
+    return defaultCountryCode + cleaned; // Anteponer "34"
   }
-  return /^\d+$/.test(cleaned) ? cleaned : "";
+
+  // 6. Si es un número de cualquier país pero ya tiene un código de país implícito (ej. francés 06... o inglés 07...)
+  //    Esta parte es más compleja y requeriría reglas por país o una librería.
+  //    Por ahora, si no cumple las reglas anteriores y no es claramente internacional,
+  //    podríamos considerarlo no válido o devolverlo tal cual si esperamos que ya venga bien.
+  //    Para este ejemplo, si no se pudo normalizar a un formato con `defaultCountryCode`,
+  //    y no es ya un número que empiece por otro código de país (lo cual `cleaned.startsWith('+')` ya manejó),
+  //    lo marcamos como potencialmente problemático devolviendo cadena vacía si no es puramente numérico.
+  return /^\d+$/.test(cleaned) ? cleaned : ""; // Solo si es enteramente numérico
 }
+// --- FIN FUNCIÓN DE NORMALIZACIÓN ---
 
 export default function MensajesPage() {
-  // --- Estados para envío de mensajes ad-hoc (tu lógica actual) ---
   const [mensaje, setMensaje] = useState("");
   const [modoEnvio, setModoEnvio] = useState<"individual" | "lista">(
     "individual"
   );
   const [invitadoId, setInvitadoId] = useState("");
-  const [telefono, setTelefono] = useState("");
+  const [telefono, setTelefono] = useState(""); // Este es el teléfono "crudo" del invitado seleccionado
   const [listaSeleccionadaId, setListaSeleccionadaId] = useState("");
   const [listasDifusion, setListasDifusion] = useState<ListaDifusion[]>([]);
   const [invitados, setInvitados] = useState<Invitado[]>([]);
   const [invitadosOptions, setInvitadosOptions] = useState<
     { value: string; label: string }[]
   >([]);
-
-  // --- Estados para la gestión de la sesión de WhatsApp (tu lógica actual) ---
   const [estadoSesion, setEstadoSesion] = useState<string>("CONECTANDO");
   const [mensajeSesion, setMensajeSesion] = useState<string>(
     "Verificando sesión..."
@@ -83,25 +116,11 @@ export default function MensajesPage() {
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [cargandoSesion, setCargandoSesion] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [mostrarBanner, setMostrarBanner] = useState(false);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ▼▼▼ NUEVO/MODIFICADO ▼▼▼ Estado para controlar el modal de invitaciones y guardar bodaId
-  const [isInvitationModalOpen, setIsInvitationModalOpen] = useState(false);
-  const [bodaId, setBodaId] = useState<string>("");
-
   useEffect(() => {
-    const userString = localStorage.getItem("user");
-    if (userString) {
-      const user = JSON.parse(userString);
-      if (user?.bodaId) {
-        setBodaId(user.bodaId); // Guardamos bodaId en el estado para pasarlo al modal
-        cargarDatosIniciales(user.bodaId);
-      } else {
-        toast.error(
-          "ID de boda no encontrado. Asegúrate de haber iniciado sesión correctamente."
-        );
-      }
-    }
+    cargarDatosIniciales();
     verificarEstadoSesion();
     return () => {
       if (pollingRef.current) clearTimeout(pollingRef.current);
@@ -116,12 +135,28 @@ export default function MensajesPage() {
     setInvitadosOptions(options);
   }, [invitados]);
 
-  const cargarDatosIniciales = async (bodaId: string) => {
+  const cargarDatosIniciales = async () => {
+    const userString = localStorage.getItem("user");
+    const user = JSON.parse(userString || "{}");
+    console.log("Datos de usuario cargados:", user); // Para depuración
+
+    if (!user?.bodaId) {
+      toast.error(
+        "ID de boda no encontrado. Asegúrate de haber iniciado sesión correctamente."
+      );
+      console.error("Error: bodaId es undefined. User:", user);
+      return;
+    }
+
     try {
-      const invitadosData = await getAllGuestsByBoda(bodaId);
+      const [invitadosData, listasData] = await Promise.all([
+        getAllGuestsByBoda(user.bodaId),
+        getBroadcastListsService(user.bodaId),
+      ]);
       setInvitados(invitadosData.invitados || []);
-      const listasData = await getBroadcastListsService(bodaId);
       setListasDifusion(listasData || []);
+      console.log("Invitados cargados:", invitadosData.invitados);
+      console.log("Listas cargadas:", listasData);
     } catch (error) {
       console.error("❌ Error al cargar datos iniciales:", error);
       toast.error("Error al cargar invitados o listas de difusión.");
@@ -134,36 +169,38 @@ export default function MensajesPage() {
   };
 
   const verificarEstadoSesion = async () => {
-    /* ... Tu lógica existente no cambia ... */
     try {
       const data = await obtenerEstadoSesion();
       if (data?.estado) {
         setEstadoSesion(data.estado);
         setQrCodeUrl(data.qr || null);
+        let newBanner = true;
         let newMensajeSesion = "";
+
         switch (data.estado) {
           case "CONNECTED":
             newMensajeSesion = "✅ Conectado a WhatsApp";
+            newBanner = false;
             if (pollingRef.current) clearTimeout(pollingRef.current);
             break;
           case "NEEDS_QR":
-            newMensajeSesion = "📲 Escanea el QR para conectar";
+            newMensajeSesion = "📲 Escanea el QR para conectar con WhatsApp";
             iniciarPolling();
             break;
           case "DISCONNECTED":
-            newMensajeSesion = "🔌 Desconectado. Inicia sesión.";
+            newMensajeSesion = "🔌 Desconectado. Inicia sesión para continuar.";
             if (pollingRef.current) clearTimeout(pollingRef.current);
             break;
           case "LOGGED_OUT":
-            newMensajeSesion = "🔒 Sesión cerrada. Vuelve a iniciar.";
+            newMensajeSesion = "🔒 Sesión cerrada. Vuelve a iniciar sesión.";
             if (pollingRef.current) clearTimeout(pollingRef.current);
             break;
           case "CONNECTING":
-            newMensajeSesion = "⏳ Conectando...";
+            newMensajeSesion = "⏳ Conectando a WhatsApp...";
             iniciarPolling();
             break;
           case "ERROR":
-            newMensajeSesion = "❌ Error en sesión. Reintentar.";
+            newMensajeSesion = "❌ Error en la sesión. Intenta reiniciar.";
             if (pollingRef.current) clearTimeout(pollingRef.current);
             break;
           default:
@@ -171,10 +208,14 @@ export default function MensajesPage() {
             iniciarPolling();
         }
         setMensajeSesion(newMensajeSesion);
+        setMostrarBanner(newBanner);
       } else {
         setEstadoSesion("ERROR_SERVICIO");
-        setMensajeSesion("⚠️ No se pudo obtener estado del servicio WhatsApp.");
+        setMensajeSesion(
+          "⚠️ No se pudo obtener el estado del servicio de WhatsApp."
+        );
         setQrCodeUrl(null);
+        setMostrarBanner(true);
         if (pollingRef.current) clearTimeout(pollingRef.current);
       }
     } catch (error) {
@@ -182,120 +223,148 @@ export default function MensajesPage() {
       setEstadoSesion("ERROR_SERVICIO");
       setMensajeSesion("Error de comunicación con el servicio de WhatsApp.");
       setQrCodeUrl(null);
+      setMostrarBanner(true);
       if (pollingRef.current) clearTimeout(pollingRef.current);
     }
   };
 
   const handleIniciarSesion = async () => {
-    /* ... Tu lógica existente no cambia ... */
     setCargandoSesion(true);
     setQrCodeUrl(null);
     setMensajeSesion("🚀 Solicitando inicio de sesión...");
+    setMostrarBanner(true);
     try {
       await iniciarSesionWhatsApp();
-      toast.success("Solicitud enviada. Verificando...");
+      toast.success("Solicitud de inicio de sesión enviada. Verificando...");
       await new Promise((resolve) => setTimeout(resolve, 1500));
       await verificarEstadoSesion();
     } catch (error) {
       console.error("❌ Error al iniciar sesión:", error);
-      toast.error("No se pudo iniciar la solicitud de sesión.");
+      toast.error("No se pudo iniciar la solicitud de sesión de WhatsApp.");
       setEstadoSesion("ERROR");
-      setMensajeSesion("❌ Error al intentar iniciar sesión.");
+      setMensajeSesion("❌ Error al intentar iniciar la sesión.");
     } finally {
       setCargandoSesion(false);
     }
   };
 
   const handleLogout = async () => {
-    /* ... Tu lógica existente no cambia ... */
     const toastId = toast.loading("Cerrando sesión de WhatsApp...");
     try {
       await logoutWhatsApp();
-      toast.success("Sesión cerrada. Necesitarás escanear QR.", {
-        id: toastId,
-      });
+      toast.success(
+        "Sesión de WhatsApp cerrada. Necesitarás escanear QR de nuevo.",
+        { id: toastId }
+      );
       await verificarEstadoSesion();
     } catch (error) {
       console.error("❌ Error al cerrar sesión:", error);
-      toast.error("No se pudo cerrar la sesión.", { id: toastId });
+      toast.error("No se pudo cerrar la sesión de WhatsApp correctamente.", {
+        id: toastId,
+      });
     }
   };
 
   const handleEnviar = async () => {
-    /* ... Tu lógica existente para enviar mensajes ad-hoc no cambia ... */
     if (!mensaje.trim()) {
-      toast.error("El mensaje no puede estar vacío.");
+      toast.error("El mensaje no puede estar vacío");
       return;
     }
     if (estadoSesion !== "CONNECTED") {
-      toast.error("WhatsApp no está conectado.");
+      toast.error("WhatsApp no está conectado. Por favor, inicia sesión.");
       return;
     }
+
     setEnviando(true);
     const toastId = toast.loading("Enviando mensaje...");
+
     try {
       if (modoEnvio === "individual") {
         if (!invitadoId || !telefono) {
-          toast.error("Selecciona un invitado con teléfono.");
+          // 'telefono' es el número crudo del invitado seleccionado
+          toast.error("Selecciona un invitado y asegúrate que tenga teléfono.");
           setEnviando(false);
           toast.dismiss(toastId);
           return;
         }
-        const telefonoNormalizado = normalizePhoneNumber(telefono);
+        const telefonoNormalizado = normalizePhoneNumber(telefono); // NORMALIZAR AQUÍ
         if (!telefonoNormalizado) {
-          toast.error(`El número "${telefono}" del invitado no es válido.`);
+          toast.error(
+            `El número de teléfono "${telefono}" del invitado no es válido.`
+          );
           setEnviando(false);
           toast.dismiss(toastId);
           return;
         }
         await sendDirectMessage(telefonoNormalizado, mensaje);
-        const nombreInvitado =
-          invitados.find((i) => i._id === invitadoId)?.nombre || "invitado";
-        toast.success(`📤 Mensaje enviado a ${nombreInvitado}.`);
+        toast.success(
+          "📤 Mensaje enviado al invitado: " +
+            invitados.find((i) => i._id === invitadoId)?.nombre
+        );
         setInvitadoId("");
         setTelefono("");
       } else {
+        // modoEnvio === "lista"
         if (!listaSeleccionadaId) {
           toast.error("Selecciona una lista de difusión.");
           setEnviando(false);
           toast.dismiss(toastId);
           return;
         }
+
         const listaActual = listasDifusion.find(
           (l) => l._id === listaSeleccionadaId
         );
-        if (
-          !listaActual ||
-          !listaActual.invitados ||
-          listaActual.invitados.length === 0
-        ) {
-          toast.error(
-            `La lista "${listaActual?.nombre}" no tiene invitados o los invitados no tienen teléfono.`
-          );
+        if (!listaActual) {
+          toast.error("Lista de difusión no encontrada.");
           setEnviando(false);
           toast.dismiss(toastId);
           return;
         }
-        const telefonosCrudosDeLaLista = listaActual.invitados
-          .map((inv) => inv.telefono)
-          .filter(Boolean) as string[];
+
+        // --- TODO: IMPLEMENTAR LÓGICA PARA OBTENER TELÉFONOS DE LA LISTA ---
+        // Esta es la parte CRÍTICA que debes adaptar a tu estructura de datos.
+        // Cómo obtienes los números de teléfono de los invitados de `listaActual`?
+        // Ejemplo: si `listaActual` tuviera una propiedad `invitadoIds: string[]`
+        // const telefonosCrudosDeLaLista = invitados
+        //    .filter(inv => listaActual.invitadoIds?.includes(inv._id))
+        //    .map(inv => inv.telefono)
+        //    .filter(Boolean); // Filtra nulos o undefined
+
+        // ¡RECUERDA REEMPLAZAR ESTO CON TU LÓGICA REAL!
+        console.warn(
+          "Usando teléfonos DUMMY para la lista de difusión. Implementa la lógica real para obtenerlos de 'listaActual' y 'invitados'."
+        );
+        // Para probar, puedes tomar los primeros X invitados que tengan teléfono:
+        const telefonosCrudosDeLaLista = invitados
+          .filter((i) => i.telefono)
+          .slice(0, 2)
+          .map((i) => i.telefono);
+        // O usa unos fijos para la prueba, asegurándote de que son números a los que puedes enviar:
+        // const telefonosCrudosDeLaLista = ["TU_NUMERO_DE_PRUEBA_1_CON_PREFIJO_PAIS", "TU_NUMERO_DE_PRUEBA_2_CON_PREFIJO_PAIS"];
+
         if (telefonosCrudosDeLaLista.length === 0) {
           toast.error(
-            `No se encontraron números de teléfono válidos en la lista "${listaActual.nombre}".`
+            "La lista seleccionada no tiene invitados con teléfono válidos."
           );
           setEnviando(false);
           toast.dismiss(toastId);
           return;
         }
+
         const telefonosNormalizadosDeLista = telefonosCrudosDeLaLista
           .map((tel) => normalizePhoneNumber(tel))
-          .filter((tel) => tel);
+          .filter((tel) => tel); // Filtrar los que quedaron vacíos o inválidos tras normalizar
+
         if (telefonosNormalizadosDeLista.length === 0) {
-          toast.error("Ningún número en la lista es válido tras normalizar.");
+          toast.error(
+            "Ningún número de teléfono en la lista es válido después de normalizar."
+          );
           setEnviando(false);
           toast.dismiss(toastId);
           return;
         }
+
         await sendBroadcastMessage(telefonosNormalizadosDeLista, mensaje);
         toast.success(
           `📢 Mensaje enviado a ${telefonosNormalizadosDeLista.length} destinatarios de la lista "${listaActual.nombre}".`
@@ -319,16 +388,44 @@ export default function MensajesPage() {
 
   return (
     <div className="p-6 space-y-8 max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-3xl font-bold text-gray-800">
-          📨 Enviar Mensajes de WhatsApp
-        </h2>
-      </div>
+      <h2 className="text-3xl font-bold text-gray-800">
+        📨 Enviar Mensajes de WhatsApp
+      </h2>
 
-      {/* Panel de Estado de Sesión (sin cambios significativos) */}
+      {mostrarBanner && estadoSesion !== "NEEDS_QR" && (
+        <div
+          className={`px-4 py-3 rounded shadow-md mb-4 ${
+            estadoSesion.startsWith("ERROR")
+              ? "bg-red-100 border border-red-400 text-red-700"
+              : estadoSesion === "CONNECTED" // Este banner no debería mostrarse si está conectado y !mostrarBanner
+              ? "bg-green-100 border border-green-400 text-green-700"
+              : "bg-yellow-100 border border-yellow-400 text-yellow-700"
+          }`}
+        >
+          {mensajeSesion}
+        </div>
+      )}
+
+      {estadoSesion === "NEEDS_QR" && qrCodeUrl && (
+        <div className="my-4 p-6 border bg-white rounded-lg shadow-lg flex flex-col items-center text-center">
+          <p className="mb-3 text-lg font-semibold text-gray-700">
+            {mensajeSesion}
+          </p>
+          <img
+            src={qrCodeUrl}
+            alt="Escanea QR con WhatsApp"
+            className="w-60 h-60 md:w-64 md:h-64 border shadow-md"
+          />
+          <p className="mt-3 text-sm text-gray-500">
+            Abre WhatsApp en tu teléfono &gt; Menú o Ajustes &gt; Dispositivos
+            vinculados &gt; Vincular un dispositivo.
+          </p>
+        </div>
+      )}
+
       <div className="border p-5 rounded-lg bg-gray-50 shadow space-y-3">
         <h3 className="text-xl font-semibold text-gray-800">
-          📲 Estado de la Sesión
+          📲 Estado de la Sesión de WhatsApp
         </h3>
         <p className="text-sm">
           <span className="font-medium">Estado:</span>{" "}
@@ -363,7 +460,7 @@ export default function MensajesPage() {
                 ? "Conectando..."
                 : estadoSesion === "LOGGED_OUT" ||
                   estadoSesion.startsWith("ERROR")
-                ? "🔄 Reintentar"
+                ? "🔄 Reintentar Conexión"
                 : "🔌 Iniciar Sesión"}
             </button>
           )}
@@ -371,17 +468,16 @@ export default function MensajesPage() {
           <button
             className="ml-3 px-5 py-2.5 rounded-md text-white font-medium bg-red-500 hover:bg-red-600 transition-colors duration-150 text-sm"
             onClick={handleLogout}
-            disabled={cargandoSesion}
+            disabled={cargandoSesion} // También deshabilitar si se está cargando una sesión
           >
-            🚪 Cerrar Sesión
+            🚪 Cerrar Sesión WhatsApp
           </button>
         )}
       </div>
 
-      {/* Formulario de Envío (solo si está conectado) */}
       {estadoSesion === "CONNECTED" ? (
         <>
-          <div className="flex items-center gap-4 border-b pb-4 mb-6">
+          <div className="flex items-center gap-4 border-b pb-4 mb-4">
             <button
               className={`px-4 py-2 rounded-md text-sm font-medium ${
                 modoEnvio === "individual"
@@ -390,7 +486,7 @@ export default function MensajesPage() {
               }`}
               onClick={() => setModoEnvio("individual")}
             >
-              👤 Mensaje Individual
+              👤 Invitado Individual
             </button>
             <button
               className={`px-4 py-2 rounded-md text-sm font-medium ${
@@ -400,27 +496,16 @@ export default function MensajesPage() {
               }`}
               onClick={() => setModoEnvio("lista")}
             >
-              📋 Mensaje a Lista
-            </button>
-
-            {/* ▼▼▼ NUEVO/MODIFICADO: Botón para abrir el modal de invitaciones ▼▼▼ */}
-            <button
-              onClick={() => setIsInvitationModalOpen(true)}
-              className="ml-auto px-4 py-2 rounded-md text-sm font-medium bg-purple-600 text-white shadow-sm hover:bg-purple-700 transition-colors"
-            >
-              💌 Enviar Invitaciones Iniciales
+              📋 Lista de Difusión
             </button>
           </div>
+
           {modoEnvio === "individual" ? (
-            <div className="space-y-3">
-              <label
-                htmlFor="select-invitado"
-                className="block font-medium text-gray-700 text-sm"
-              >
+            <div className="space-y-2">
+              <label className="block font-medium text-gray-700 text-sm">
                 📱 Selecciona Invitado
               </label>
               <Select
-                inputId="select-invitado"
                 value={invitadosOptions.find(
                   (option) => option.value === invitadoId
                 )}
@@ -428,7 +513,7 @@ export default function MensajesPage() {
                   const id = selectedOption?.value;
                   setInvitadoId(id || "");
                   const invitado = invitados.find((i) => i._id === id);
-                  setTelefono(invitado?.telefono || "");
+                  setTelefono(invitado?.telefono || ""); // 'telefono' es el número crudo que se normalizará al enviar
                 }}
                 options={invitadosOptions}
                 placeholder="Buscar y seleccionar invitado..."
@@ -442,18 +527,14 @@ export default function MensajesPage() {
               />
             </div>
           ) : (
-            <div className="space-y-3">
-              <label
-                htmlFor="select-lista"
-                className="block font-medium text-gray-700 text-sm"
-              >
+            <div className="space-y-2">
+              <label className="block font-medium text-gray-700 text-sm">
                 📝 Selecciona Lista de Difusión
               </label>
               <select
-                id="select-lista"
                 value={listaSeleccionadaId}
                 onChange={(e) => setListaSeleccionadaId(e.target.value)}
-                className="border rounded-md p-2.5 w-full text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-white shadow-sm"
+                className="border rounded-md p-2 w-full text-sm focus:ring-indigo-500 focus:border-indigo-500"
               >
                 <option value="">-- Selecciona una lista --</option>
                 {listasDifusion.map((l) => (
@@ -465,7 +546,7 @@ export default function MensajesPage() {
             </div>
           )}
 
-          <div className="mt-6">
+          <div>
             <label className="block font-medium text-gray-700 text-sm mb-1">
               ✍️ Escribe tu Mensaje
             </label>
@@ -473,7 +554,7 @@ export default function MensajesPage() {
           </div>
 
           <button
-            className={`w-full mt-6 px-6 py-3 rounded-md text-white font-semibold text-base transition-colors duration-150 ${
+            className={`w-full px-6 py-3 rounded-md text-white font-semibold text-base ${
               enviando
                 ? "bg-gray-400 cursor-not-allowed"
                 : "bg-green-600 hover:bg-green-700"
@@ -486,24 +567,17 @@ export default function MensajesPage() {
 
           {/* <MensajeProgramadoForm
             modoEnvio={modoEnvio}
-            invitadoId={invitadoId}
-            listaId={listaSeleccionadaId} 
-          /> */}
+            // Pasar datos normalizados o crudos según lo que espere MensajeProgramadoForm
+            // invitadoId={invitadoId} 
+            // listaId={listaSeleccionadaId} 
+          />
+          */}
         </>
       ) : (
-        <p className="text-center text-gray-600 py-10 bg-gray-50 rounded-lg shadow mt-6">
+        <p className="text-center text-gray-600 py-10 bg-gray-50 rounded-lg shadow">
           ℹ️ Debes iniciar y conectar tu sesión de WhatsApp para poder enviar
           mensajes.
         </p>
-      )}
-
-      {/* ▼▼▼ NUEVO/MODIFICADO: Renderizado del modal ▼▼▼ */}
-      {isInvitationModalOpen && (
-        <EnviarInvitacionModal
-          isOpen={isInvitationModalOpen}
-          onClose={() => setIsInvitationModalOpen(false)}
-          bodaId={bodaId}
-        />
       )}
     </div>
   );

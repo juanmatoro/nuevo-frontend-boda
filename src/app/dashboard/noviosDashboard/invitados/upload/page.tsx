@@ -90,7 +90,7 @@ export default function UploadInvitadosPage() {
 
     try {
       const response = await axiosInstance.post(
-        "/guests/cargar-excel",
+        "/guests/actions/cargar-excel",
         formData
       );
 

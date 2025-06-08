@@ -49,7 +49,7 @@ export default function ListasDifusionDashboard() {
       setBodaId(user.bodaId);
 
       axiosInstance
-        .get(`/guests/invitados/${user.bodaId}?limit=1000`)
+        .get(`/guests/boda/${bodaId}?all=true`)
         .then((res) => {
           if (Array.isArray(res.data.invitados)) {
             setInvitados(res.data.invitados);

@@ -118,6 +118,14 @@ export default function DashboardLayout({
                 </li>
                 <li>
                   <Link
+                    href="/dashboard/noviosDashboard/plantillas"
+                    className="hover:text-gray-300"
+                  >
+                    ✉️ Mis Plantillas
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     href={`/dashboard/preguntas/${user?.bodaId}`}
                     className="hover:text-gray-300"
                   >

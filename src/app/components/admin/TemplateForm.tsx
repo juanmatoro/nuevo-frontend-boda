@@ -1,4 +1,3 @@
-// src/app/components/admin/TemplateForm.tsx
 "use client";
 
 import { useState, useEffect, FormEvent } from "react";
@@ -32,6 +31,7 @@ interface TemplateFormProps {
   isSubmitting: boolean;
   onSubmit: (templateData: Partial<MessageTemplate>) => Promise<void>;
   onCancelEdit?: () => void;
+  usedSystemSlugs: string[];
 }
 
 export default function TemplateForm({
@@ -39,6 +39,7 @@ export default function TemplateForm({
   isSubmitting,
   onSubmit,
   onCancelEdit,
+  usedSystemSlugs,
 }: TemplateFormProps) {
   const [formData, setFormData] = useState(initialData);
 
@@ -47,7 +48,9 @@ export default function TemplateForm({
   }, [initialData]);
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -59,10 +62,32 @@ export default function TemplateForm({
       toast.error("El nombre y el contenido de la plantilla son obligatorios.");
       return;
     }
-    onSubmit(formData);
+
+    // ▼▼▼ LÓGICA CORREGIDA PARA PREPARAR EL PAYLOAD ▼▼▼
+    const finalFormData: Partial<MessageTemplate> = {
+      ...formData,
+      // 1. Aseguramos que 'cuerpo' siempre tenga el valor de 'contenido'
+      //    si tu modelo lo requiere y no tiene un campo de UI separado.
+      cuerpo: formData.contenido,
+
+      // 2. Si el slug seleccionado es "personalizado", lo enviamos como 'null' al backend.
+      //    Si no, enviamos el slug seleccionado (ej. "primer-contacto").
+      slug:
+        formData.slug === "personalizado" || !formData.slug
+          ? null
+          : formData.slug,
+    };
+
+    onSubmit(finalFormData);
   };
 
   const isEditing = !!initialData._id;
+
+  const isSlugTaken =
+    !isEditing &&
+    formData.slug &&
+    formData.slug !== "personalizado" &&
+    usedSystemSlugs.includes(formData.slug);
 
   return (
     <form
@@ -97,6 +122,37 @@ export default function TemplateForm({
 
       <div>
         <label
+          htmlFor="slug"
+          className="block text-sm font-medium text-gray-700"
+        >
+          Tipo de Plantilla
+        </label>
+        <select
+          name="slug"
+          id="slug"
+          value={formData.slug || "personalizado"}
+          onChange={handleInputChange}
+          className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${
+            isSlugTaken ? "border-red-500" : "border-gray-300"
+          }`}
+        >
+          <option value="personalizado">Personalizado (Uso General)</option>
+          <option value="primer-contacto">Primer Contacto (Invitación)</option>
+          <option value="recordatorio-rsvp">
+            Recordatorio de Confirmación
+          </option>
+          <option value="agradecimiento">Agradecimiento</option>
+        </select>
+        {isSlugTaken && (
+          <p className="text-red-600 text-sm mt-1">
+            ⚠️ Ya existe una plantilla de este tipo. Puedes editar la existente
+            desde la lista de abajo.
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label
           htmlFor="contenido"
           className="block text-sm font-medium text-gray-700"
         >
@@ -112,15 +168,16 @@ export default function TemplateForm({
           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
         ></textarea>
         <p className="text-xs text-gray-500 mt-1">
-          Usa los shortcodes de abajo para personalizar el mensaje.
+          Este texto se usará para el cuerpo del mensaje y para procesar los
+          shortcodes.
         </p>
       </div>
 
       <div className="flex items-center gap-4">
         <button
           type="submit"
-          disabled={isSubmitting}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300"
+          disabled={isSubmitting || isSlugTaken}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed"
         >
           {isSubmitting
             ? "Guardando..."

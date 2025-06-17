@@ -5,7 +5,8 @@ import axiosInstance from "./axiosInstance";
 
 // const RAILWAY_APP_URL = "https://whatsapp.celebra-conmigo.com"; // <-- PEGA TU URL DE RAILWAY AQUÍ
 // const RAILWAY_APP_URL = "http://localhost:4003"; // Cambia esto a tu URL de Railway o localhost
-const NEXT_PUBLIC_API_BASE_URL = "http://localhost:3001/api";
+const NEXT_PUBLIC_API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4003"; // Asegúrate de que esta variable esté definida en tu .env.local
 const WHATSAPP_API_KEY = process.env.WHATSAPP_SERVICE_API_KEY;
 
 const whatsappAPI = axios.create({

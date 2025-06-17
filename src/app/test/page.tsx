@@ -12,7 +12,7 @@ export default function TestPage() {
 
   const fetchData = async () => {
     try {
-      const response = await fetch("http://localhost:3001/api/test", {
+      const response = await fetch("https://api.celebra-conmigo.com/api/test", {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,

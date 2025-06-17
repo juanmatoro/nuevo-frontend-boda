@@ -187,7 +187,7 @@ export default function MensajesPage() {
   };
 
   const handleIniciarSesion = async () => {
-    /* ... Tu lógica existente no cambia ... */
+   
     setCargandoSesion(true);
     setQrCodeUrl(null);
     setMensajeSesion("🚀 Solicitando inicio de sesión...");
@@ -207,7 +207,7 @@ export default function MensajesPage() {
   };
 
   const handleLogout = async () => {
-    /* ... Tu lógica existente no cambia ... */
+   
     const toastId = toast.loading("Cerrando sesión de WhatsApp...");
     try {
       await logoutWhatsApp();

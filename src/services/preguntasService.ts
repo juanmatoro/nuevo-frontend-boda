@@ -67,3 +67,31 @@ export const getPlantillas = async (): Promise<string[]> => {
 export const crearPlantilla = async (contenido: string) => {
   return await axios.post("/plantillas", { contenido });
 };
+
+// --- Acción de Asignar Pregunta ---
+// Esta función ahora está aquí para centralizar la lógica de preguntas.
+// Llama al endpoint correcto en el backend que está en el controlador de invitados.
+
+interface AsignarPreguntaPayload {
+  preguntaId: string;
+  tipoAsignacion: "todos" | "lista" | "invitado";
+  listaId?: string;
+  invitadoId?: string;
+}
+
+export const asignarPreguntaAInvitados = async (
+  payload: AsignarPreguntaPayload
+) => {
+  try {
+    // ▼▼▼ CORRECCIÓN PRINCIPAL ▼▼▼
+    // La ruta correcta en el backend es /guests/actions/asignar-pregunta
+    const response = await axiosInstance.post(
+      "/guests/asignar-pregunta",
+      payload
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error en el servicio al asignar pregunta:", error);
+    throw error;
+  }
+};

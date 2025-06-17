@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getMessageTemplatesByBoda } from "@/services/invitatiosnService"; // Necesitarás crear esta función de servicio
+import { getMessageTemplatesByBoda } from "@/services/invitatiosnService";
 import { getPendingGuestsByBoda } from "@/services/invitadosSercice"; // Y esta también
 import { sendInitialInvitations } from "@/services/invitatiosnService"; // Y esta para enviar
 import { MessageTemplate } from "@/interfaces/template"; // Define esta interfaz

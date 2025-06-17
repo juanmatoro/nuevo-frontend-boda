@@ -5,8 +5,9 @@ import { useState, useEffect } from "react";
 import Modal from "@/app/components/ui/Modal";
 import {
   getInvitadosByBoda,
-  asignarPreguntaAInvitados,
+  getAllGuestsByBoda,
 } from "@/services/invitadosSercice";
+import { asignarPreguntaAInvitados } from "@/services/preguntasService";
 import {
   getListasPorInvitado,
   getBroadcastListsByBoda,
@@ -53,7 +54,7 @@ export default function AsignarPreguntaModal({
 
   const cargarInvitados = async () => {
     try {
-      const { invitados } = (await getInvitadosByBoda(bodaId)) as {
+      const { invitados } = (await getAllGuestsByBoda(bodaId)) as {
         invitados: Invitado[];
       };
       setInvitados(invitados);

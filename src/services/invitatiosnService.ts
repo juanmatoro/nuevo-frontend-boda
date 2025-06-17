@@ -30,7 +30,7 @@ export const getMessageTemplatesByBoda = async (
     // Hace la petición GET al endpoint: /api/message-templates
     // Añade el bodaId como un query parameter en la URL.
     // El token JWT del "novio" se añadirá automáticamente a las cabeceras gracias al interceptor en apiClient.
-    const response = await apiClient.get(`/templates`);
+    const response = await apiClient.get(`/plantillas`);
 
     // Basado en nuestro controlador `obtenerPlantillas`, la respuesta del backend tiene la forma:
     // { ok: true, plantillas: [...] }
@@ -56,7 +56,7 @@ export const sendInitialInvitations = async (
     };
 
     // Llama al endpoint que diseñamos para el envío de invitaciones masivas
-    const response = await apiClient.post("/api/invitations/send", payload);
+    const response = await apiClient.post("/invitations/send", payload);
     return response.data;
   } catch (error) {
     console.error("Error al enviar invitaciones:", error);

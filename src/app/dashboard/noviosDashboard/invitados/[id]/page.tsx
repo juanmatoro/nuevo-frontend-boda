@@ -1,122 +1,139 @@
-// pages/dashboard/noviosDashboard/invitados/[id].tsx (o donde se encuentre tu archivo)
+// pages/dashboard/noviosDashboard/invitados/[id].tsx
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
+import toast from "react-hot-toast";
+
+// Tus componentes
 import EditarInvitadoModal from "@/app/components/admin/EditarInvitadoModal";
-import { getInvitadoById } from "@/services/invitadosSercice";
-import { getListasPorInvitado } from "@/services/broadcastService";
-import { BroadcastList } from "@/interfaces/broadcast";
 import PreguntasInvitado from "@/app/components/admin/PreguntasInvitado";
 
-// Interfaz más completa para los detalles del invitado
-interface PreguntaAsignada {
-  preguntaId: string;
-  pregunta: string;
-  respuesta: string;
-  subRespuesta?: string;
-  fecha?: Date;
-}
+// Tus servicios
+import {
+  getInvitadoById,
+  guardarRespuestasPorAdmin,
+  guardarMisRespuestas,
+} from "@/services/invitadosSercice";
+import { getListasPorInvitado } from "@/services/broadcastService";
 
-interface InvitadoDetallado {
-  _id: string;
-  nombre: string;
-  telefono: string;
-  invitadoDe: string;
-  confirmacion: boolean | null;
-  bodaId: string;
-  pax?: number;
-  // Este es el array que viene enriquecido desde tu controlador obtenerInvitado
-  preguntasAsignadas?: PreguntaAsignada[];
+// Tus interfaces
+import { BroadcastList } from "@/interfaces/broadcast";
+import { Question } from "@/interfaces/preguntas";
+import { Invitado } from "@/interfaces/invitado";
+
+interface InvitadoDetallado extends Invitado {
+  preguntasAsignadas?: Question[];
 }
 
 export default function DetallesInvitado() {
   const params = useParams();
   const id = params.id as string;
 
-  // Usamos la interfaz más específica para el estado
   const [invitado, setInvitado] = useState<InvitadoDetallado | null>(null);
   const [listasInvitado, setListasInvitado] = useState<BroadcastList[]>([]);
   const [modalAbierto, setModalAbierto] = useState(false);
-  const [error, setError] = useState<string | null>(null); // Estado para manejar errores de API
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const storedUser =
-    typeof window !== "undefined" ? localStorage.getItem("user") : null;
-  const user = storedUser ? JSON.parse(storedUser) : null;
-  const userId = user?._id;
-  const userRole = user?.tipoUsuario;
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      const user = JSON.parse(storedUser);
+      setUserId(user?._id);
+      setUserRole(user?.tipoUsuario);
+    }
+  }, []);
 
   const esAdmin = userRole === "admin";
   const esNovio = userRole === "novio" || userRole === "novia";
-  const esInvitado = userRole === "guest";
+  const esElPropioInvitado = userRole === "GUEST_SESSION" && userId === id;
+  // ▼▼▼ CORRECCIÓN: Definimos la variable que faltaba ▼▼▼
+  const esEditablePorAdmin = esAdmin || esNovio;
 
-  const esEditable = esAdmin || esNovio || (esInvitado && userId === id);
+  const fetchInvitado = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getInvitadoById(id);
+      data.preguntasAsignadas = Array.isArray(data.preguntasAsignadas)
+        ? data.preguntasAsignadas
+        : [];
+      setInvitado(data);
+    } catch (err) {
+      console.error("❌ Error al cargar invitado:", err);
+      setError("No se pudieron cargar los datos del invitado.");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
-    const fetchInvitado = async () => {
-      try {
-        const data = await getInvitadoById(id);
-        // Asumo que tu servicio devuelve el objeto del invitado directamente
-        setInvitado(data);
-      } catch (err) {
-        console.error("❌ Error al cargar invitado:", err);
-        // MEJORA: Mostrar error en la UI
-        setError("No se pudieron cargar los datos del invitado.");
-      }
-    };
-
-    const fetchListas = async () => {
-      try {
-        const listas = await getListasPorInvitado(id);
-        setListasInvitado(listas);
-      } catch (err) {
-        console.error("❌ Error al cargar listas del invitado:", err);
-        // No es crítico, así que solo logueamos el error
-      }
-    };
-
-    if (id) {
-      fetchInvitado();
-      if (esNovio || esAdmin) {
-        fetchListas();
-      }
+    fetchInvitado();
+    if (esAdmin || esNovio) {
+      getListasPorInvitado(id)
+        .then(setListasInvitado)
+        .catch((err) => console.error("Error al cargar listas:", err));
     }
-    // MEJORA: Añadir esNovio y esAdmin al array de dependencias
-  }, [id, esNovio, esAdmin]);
+  }, [id, esAdmin, esNovio, fetchInvitado]);
 
-  // Esta comprobación inicial es clave y está bien implementada
-  if (!invitado && !error) {
-    // Muestra cargando si no hay invitado Y no hay error
+  const handleGuardarRespuestas = async (respuestasParaEnviar: any[]) => {
+    const toastId = toast.loading("Guardando respuestas...");
+    try {
+      if (esElPropioInvitado) {
+        // Llama al servicio para que el invitado guarde sus propias respuestas
+        await guardarMisRespuestas(respuestasParaEnviar);
+      } else if (esAdmin || esNovio) {
+        // Llama al servicio para que el novio/admin guarde las respuestas del invitado
+        await guardarRespuestasPorAdmin(id, respuestasParaEnviar);
+      } else {
+        throw new Error("Usuario sin permisos para guardar.");
+      }
+
+      toast.success("Respuestas guardadas con éxito.", { id: toastId });
+      fetchInvitado(); // Vuelve a cargar los datos para reflejar los cambios
+    } catch (err) {
+      toast.error("No se pudieron guardar las respuestas.", { id: toastId });
+      console.error(err);
+      throw err;
+    }
+  };
+
+  if (loading)
     return (
-      <p className="p-6 text-gray-600">⏳ Cargando datos del invitado...</p>
+      <p className="p-6 text-center text-gray-500">
+        ⏳ Cargando datos del invitado...
+      </p>
     );
-  }
+  if (error)
+    return <p className="p-6 text-center text-red-500 font-bold">{error}</p>;
+  if (!invitado)
+    return <p className="p-6 text-center">🙁 Invitado no encontrado.</p>;
 
-  // Muestra el error si ocurrió uno durante la carga
-  if (error) {
-    return <p className="p-6 text-red-500 font-bold">{error}</p>;
-  }
-
-  // Mensaje si, a pesar de todo, el invitado no se encontró
-  if (!invitado) {
-    return <p className="p-6 text-center">🙁 No se encontró al invitado.</p>;
-  }
+  // ▼▼▼ CORRECCIÓN CLAVE: Lógica para determinar si se puede editar ▼▼▼
+  const puedeEditarRespuestas = esElPropioInvitado || esAdmin || esNovio;
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-8">
-      {/* 🔙 Botón de volver */}
-      {(esAdmin || esNovio) && (
-        <div className="mb-4">
-          <Link
-            href="/dashboard/noviosDashboard/invitados"
-            className="inline-block px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded text-sm"
-          >
-            ⬅️ Volver a la lista de invitados
-          </Link>
-        </div>
-      )}
-      {/* 🎉 Datos personales */}
+      {/* ... (Tu JSX para el botón de volver y los datos personales se mantiene igual) ... */}
+      <div className="p-6 max-w-3xl mx-auto space-y-8">
+        {/* 🔙 Botón de volver */}
+        {(esAdmin || esNovio) && (
+          <div className="mb-4">
+            <Link
+              href="/dashboard/noviosDashboard/invitados"
+              className="inline-block px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded text-sm"
+            >
+              ⬅️ Volver a la lista de invitados
+            </Link>
+          </div>
+        )}
+      </div>
       <section className="bg-white shadow rounded p-4 space-y-2">
         <h2 className="text-xl font-bold">📇 Datos del invitado</h2>
         <p>
@@ -136,32 +153,29 @@ export default function DetallesInvitado() {
             ? "✅ Confirmado"
             : "❌ Rechazado"}
         </p>
-
-        {esEditable && (
+        {(esAdmin || esNovio) && (
           <button
             className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             onClick={() => setModalAbierto(true)}
           >
-            ✏️ Editar Invitado
+            ✏️ Editar Datos Generales
           </button>
         )}
       </section>
 
-      {/* ❓ Preguntas y respuestas */}
+      {/* Sección de Preguntas y Respuestas */}
       <section className="bg-white shadow rounded p-4 space-y-2">
-        <h2 className="text-xl font-bold">❓ Preguntas asignadas</h2>
-        {/* CORRECCIÓN: Usar optional chaining y pasar 'preguntas' como prop */}
-        {invitado?.preguntasAsignadas?.length > 0 ? (
-          <PreguntasInvitado preguntas={invitado.preguntasAsignadas} />
-        ) : (
-          <p className="text-gray-500 italic">
-            Aún no tienes ningún detalle por confirmar con nosotros.
-          </p>
-        )}
+        <h2 className="text-xl font-bold">❓ Preguntas y Respuestas</h2>
+        {/* ▼▼▼ LLAMADA AL COMPONENTE CON EL 'mode' CORREGIDO ▼▼▼ */}
+        <PreguntasInvitado
+          preguntas={invitado.preguntasAsignadas!}
+          mode={puedeEditarRespuestas ? "edit" : "view"}
+          onSave={handleGuardarRespuestas}
+        />
       </section>
 
-      {/* 📋 Listas de difusión (solo novios y admin) */}
-      {(esNovio || esAdmin) && (
+      {/* Sección de Listas de Difusión (solo para novios/admin) */}
+      {esEditablePorAdmin && (
         <section className="bg-white shadow rounded p-4 space-y-2">
           <h2 className="text-xl font-bold">📋 Listas de difusión</h2>
           {listasInvitado.length > 0 ? (
@@ -178,15 +192,18 @@ export default function DetallesInvitado() {
         </section>
       )}
 
-      {/* ... (resto de tus secciones: Enviar Mensaje, Galería, etc.) ... */}
-
-      {/* 🛠️ Modal de edición */}
+      {/* Modal para editar los datos generales */}
       {modalAbierto && (
         <EditarInvitadoModal
           isOpen={modalAbierto}
           invitado={invitado}
           onClose={() => setModalAbierto(false)}
-          onSave={(actualizado) => setInvitado(actualizado)}
+          onSave={(actualizado) => {
+            // Actualiza el estado local para que el cambio se vea inmediatamente
+            setInvitado((prev) =>
+              prev ? { ...prev, ...actualizado } : actualizado
+            );
+          }}
         />
       )}
     </div>

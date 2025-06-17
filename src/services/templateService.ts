@@ -1,4 +1,4 @@
-import apiClient from "./axiosInstance";
+import apiClient from "./apiClient";
 import { MessageTemplate } from "@/interfaces/template";
 
 export const obtenerPlantillasPorBoda = async (

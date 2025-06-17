@@ -87,7 +87,7 @@ export const filtrarInvitadosPorRespuesta = async (
   respuesta: string
 ): Promise<Invitado[]> => {
   const response = await axios.post<{ invitados: Invitado[] }>(
-    "/guests/filtrar-por-respuesta",
+    "/guests//actions/filtrar-por-respuesta",
     {
       preguntaId,
       respuesta,

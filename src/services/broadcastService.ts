@@ -24,7 +24,7 @@ export const crearListaDifusion = async (
   nombre: string,
   invitados: string[]
 ) => {
-  const response = await axios.post("/lists", {
+  const response = await axios.post("/lists/", {
     nombre,
     invitados,
   });

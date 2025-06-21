@@ -274,3 +274,26 @@ export const guardarMisRespuestas = async (
   });
   return response.data;
 };
+
+/**
+ * Obtiene el perfil del propio invitado autenticado.
+ * Llama al endpoint GET /api/guests/me/profile, que identifica al invitado
+ * a través de su token JWT de sesión.
+ * @returns Una promesa que se resuelve con los datos del invitado.
+ */
+export const getMyGuestProfile = async (): Promise<Invitado> => {
+  try {
+    // 1. Realiza la petición al endpoint seguro para invitados.
+    // No se necesita pasar un ID porque el backend lo identifica por el token.
+    const response = await apiClient.get("/guests/me/profile");
+
+    // 2. El backend devuelve un objeto como { ok: true, invitado: {...} }.
+    // Devolvemos solo el objeto del invitado.
+    return response.data.invitado;
+  } catch (error) {
+    console.error("Error al obtener el perfil del invitado:", error);
+    // Relanzamos el error para que el componente que llama (la página del panel)
+    // pueda manejarlo y mostrar un mensaje al usuario.
+    throw error;
+  }
+};

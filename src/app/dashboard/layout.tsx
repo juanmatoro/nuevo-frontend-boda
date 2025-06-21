@@ -108,22 +108,7 @@ export default function DashboardLayout({
                     🎉 Mis Invitados
                   </Link>
                 </li>
-                <li>
-                  <Link
-                    href="/dashboard/noviosDashboard/mensajes"
-                    className="hover:text-gray-300"
-                  >
-                    ✉️ Mis Mensajes
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/dashboard/noviosDashboard/plantillas"
-                    className="hover:text-gray-300"
-                  >
-                    ✉️ Mis Plantillas
-                  </Link>
-                </li>
+
                 <li>
                   <Link
                     href={`/dashboard/preguntas/${user?.bodaId}`}
@@ -132,7 +117,14 @@ export default function DashboardLayout({
                     📋 Mis Preguntas
                   </Link>
                 </li>
-
+                <li>
+                  <Link
+                    href="/dashboard/noviosDashboard/plantillas"
+                    className="hover:text-gray-300"
+                  >
+                    📑 Plantillas Mensajes
+                  </Link>
+                </li>
                 <li>
                   <Link
                     href={
@@ -140,7 +132,15 @@ export default function DashboardLayout({
                     }
                     className="hover:text-gray-300"
                   >
-                    📢 Mis Listas de Difusión
+                    📢 Listas Difusión
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/dashboard/noviosDashboard/mensajes"
+                    className="hover:text-gray-300"
+                  >
+                    ✉️ Mis Mensajes
                   </Link>
                 </li>
               </>
